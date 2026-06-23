@@ -13,6 +13,12 @@ class DictionaryDatabase extends Dexie {
       terms: '++id, dictionaryId, expression, reading',
       tags: '++id, [dictionaryId+name]'
     });
+    // v2 adds a `sequence` index so a lookup can pull in every writing/reading
+    // of a matched lexical entry (Yomitan merge mode). Dexie auto-reindexes
+    // existing rows on upgrade.
+    this.version(2).stores({
+      terms: '++id, dictionaryId, expression, reading, sequence'
+    });
   }
 }
 

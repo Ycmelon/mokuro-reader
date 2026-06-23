@@ -87,11 +87,17 @@
     <button class="dict-close" aria-label="Close" onclick={closePopup}>×</button>
 
     {#each popup.results as result}
+      {@const allReadings = [result.reading, ...result.altReadings].filter(
+        (r) => r && r !== result.expression
+      )}
       <div class="dict-entry">
         <div class="dict-headword">
           <span class="dict-expression">{result.expression}</span>
-          {#if result.reading && result.reading !== result.expression}
-            <span class="dict-reading">【{result.reading}】</span>
+          {#if result.altExpressions.length > 0}
+            <span class="dict-alt-expressions">{result.altExpressions.join('・')}</span>
+          {/if}
+          {#if allReadings.length > 0}
+            <span class="dict-reading">【{allReadings.join('・')}】</span>
           {/if}
           {#if result.inflectionPath.length > 0}
             <span class="dict-inflection">{result.inflectionPath.join(' › ')}</span>
@@ -206,6 +212,14 @@
   .dict-expression {
     font-size: 20px;
     font-weight: 700;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  /* Alternative writings of the same word (merged by JMdict sequence) */
+  .dict-alt-expressions {
+    font-size: 15px;
+    color: var(--color-gray-400);
+    margin-left: 6px;
     font-family: 'Noto Sans JP', sans-serif;
   }
 

@@ -99,8 +99,14 @@ export interface StoredTerm {
 }
 
 export interface LookupResult {
+  /** Primary writing (highest-scoring of the merged lexical entry). */
   expression: string;
+  /** Primary reading. */
   reading: string;
+  /** Other writings of the same word (same JMdict sequence). */
+  altExpressions: string[];
+  /** Other readings of the same word. */
+  altReadings: string[];
   definitions: Definition[];
   dictionaryTitle: string;
   score: number;

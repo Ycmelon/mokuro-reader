@@ -533,7 +533,7 @@
 
   import {
     findBestMatch,
-    lookupAndShow,
+    showLookup,
     closePopup,
     activeTextBox,
     setActiveTextBox,
@@ -622,7 +622,7 @@
     // a line break produces one range per text node it touches.
     highlightWord(rangesForSpan(segments, combinedOffset, combinedOffset + match.utf16Length));
 
-    await lookupAndShow(match.deinflectedText, match.inflectionPath);
+    showLookup(match.state);
   }
 
   /** Collects the text-node segments of a text box in reading order, tracking
