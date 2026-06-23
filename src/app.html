@@ -32,6 +32,15 @@
       dialog {
         filter: var(--night-mode-filter);
       }
+
+      /* Custom highlight for the word currently looked up in the dictionary.
+         Uses the CSS Custom Highlight API (no DOM mutation, no native selection
+         UI). Kept here, out of the Tailwind/lightningcss-optimized stylesheet,
+         because that optimizer doesn't yet recognize the ::highlight() pseudo. */
+      ::highlight(dict-word) {
+        background-color: rgba(99, 102, 241, 0.45);
+        color: inherit;
+      }
     </style>
     <!-- SVG filter for night mode - included directly in the HTML -->
     <svg width="0" height="0" style="position: absolute; z-index: -9999; visibility: hidden">
