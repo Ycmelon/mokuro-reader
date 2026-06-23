@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import NavBar from '$lib/components/NavBar.svelte';
   import Snackbar from '$lib/components/Snackbar.svelte';
+  import DictionaryProgressToast from '$lib/components/Dictionary/DictionaryProgressToast.svelte';
   import ConfirmationPopup from '$lib/components/ConfirmationPopup.svelte';
   import ExtractionModal from '$lib/components/ExtractionModal.svelte';
   import ImageOnlyImportModal from '$lib/components/ImageOnlyImportModal.svelte';
@@ -84,6 +85,13 @@
     // Start background thumbnail generation once startup checks are complete
     startThumbnailProcessing();
 
+    // Fire and forget - download & persist the bundled dictionaries on first launch
+    import('$lib/dictionary/bundled').then(({ ensureBundledDictionaries }) => {
+      ensureBundledDictionaries().catch(() => {
+        /* status surfaced via bundledDictStatuses store */
+      });
+    });
+
     // Fire and forget - don't block app initialization
     initializeProviders().catch((error) => {
       console.error('Failed to initialize providers:', error);
@@ -111,6 +119,7 @@
     <NavBar />
     {@render children?.()}
     <Snackbar />
+    <DictionaryProgressToast />
     <ConfirmationPopup />
     <ExtractionModal />
     <ImageOnlyImportModal />

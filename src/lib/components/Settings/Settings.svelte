@@ -12,6 +12,7 @@
   import Stats from './Stats.svelte';
   import VolumeDefaults from './Volume/VolumeDefaults.svelte';
   import About from './About.svelte';
+  import DictionarySettings from './DictionarySettings.svelte';
   import QuickAccess from './QuickAccess.svelte';
   import AppearanceSettings from './AppearanceSettings.svelte';
 
@@ -91,6 +92,7 @@
         <VolumeDefaults />
       {/if}
       <Profiles {onClose} />
+      <DictionarySettings />
       <AnkiConnectSettings />
       <CatalogSettings />
       <AppearanceSettings />

@@ -7,6 +7,8 @@ export type MiscSettings = {
   deviceRamGB: 4 | 8 | 16 | 32;
   turboMode: boolean;
   gdriveAutoReAuth: boolean;
+  /** Height of the dictionary definition popup, in vh. */
+  dictionaryPopupHeight: number;
 };
 
 export type MiscSettingsKey = keyof MiscSettings;
@@ -30,12 +32,17 @@ const defaultSettings: MiscSettings = {
   gallerySorting: 'SMART',
   deviceRamGB: getDefaultRamSetting(),
   turboMode: false, // Default to single-operation mode (patient users)
-  gdriveAutoReAuth: true // Keep users synced during long reading sessions
+  gdriveAutoReAuth: true, // Keep users synced during long reading sessions
+  dictionaryPopupHeight: 30
 };
 
 const stored = browser ? window.localStorage.getItem('miscSettings') : undefined;
 
-export const miscSettings = writable<MiscSettings>(stored ? JSON.parse(stored) : defaultSettings);
+// Merge over defaults so keys added in newer versions get their default value
+// for users with an older stored object.
+export const miscSettings = writable<MiscSettings>(
+  stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings
+);
 
 miscSettings.subscribe((miscSettings) => {
   if (browser) {
