@@ -74,6 +74,15 @@ export default [
   },
   prettier,
   {
-    ignores: ['build/', '.svelte-kit/', 'dist/', 'node_modules/', '**/*.cjs', '.eslintrc.cjs']
+    ignores: [
+      'build/',
+      '.svelte-kit/',
+      'dist/',
+      'node_modules/',
+      '**/*.cjs',
+      '.eslintrc.cjs',
+      // Vendored verbatim from Yomitan — keep upstream source as-is
+      'src/lib/dictionary/vendor/'
+    ]
   }
 ];

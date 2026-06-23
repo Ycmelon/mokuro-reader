@@ -149,3 +149,10 @@ input[type='radio']:checked::after {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Custom highlight for the word currently looked up in the dictionary.
+   Uses the CSS Custom Highlight API (no DOM mutation, no native selection UI). */
+::highlight(dict-word) {
+  background-color: rgba(99, 102, 241, 0.45);
+  color: inherit;
+}

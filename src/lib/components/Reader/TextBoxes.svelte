@@ -189,6 +189,14 @@
       originalInPx = minFontSize;
     }
 
+    // Exclude the copy button from measurement: as an absolutely-positioned
+    // child sitting outside the box it would otherwise inflate
+    // scrollHeight/scrollWidth and make every box look overflowing (shrinking
+    // the font to the minimum). It's display:none only while measuring.
+    const copyBtn = element.querySelector<HTMLElement>('.copyBtn');
+    const prevCopyDisplay = copyBtn?.style.display ?? '';
+    if (copyBtn) copyBtn.style.display = 'none';
+
     // Check if content overflows at a given font size
     const isOverflowingAt = (size: number) => {
       element.style.fontSize = `${size}px`;
@@ -254,6 +262,7 @@
     if (!isOverflowingAt(thresholdSize)) {
       // Wrapping allows at least 1.3x - search for the actual optimal wrap size
       const wrapSize = findOptimalSize();
+      if (copyBtn) copyBtn.style.display = prevCopyDisplay;
       return {
         finalSize: wrapSize,
         useWrapping: true,
@@ -262,6 +271,7 @@
     }
 
     // Wrapping doesn't help enough, use nowrap
+    if (copyBtn) copyBtn.style.display = prevCopyDisplay;
     return {
       finalSize: noWrapSize,
       useWrapping: false,
@@ -521,6 +531,169 @@
     }
   }
 
+  import {
+    findBestMatch,
+    lookupAndShow,
+    closePopup,
+    activeTextBox,
+    setActiveTextBox,
+    highlightWord
+  } from '$lib/dictionary/lookup';
+
+  // Devices with a real pointer (mouse) reveal text via :hover, so a single
+  // click should look up immediately. Touch devices use tap-to-reveal first.
+  const canHover =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  // caretRangeFromPoint snaps to the nearest insertion point, so tapping the
+  // trailing half of a glyph returns the offset *after* it (the next char). If
+  // the click actually lands inside the previous character's box, step back so
+  // we look up the glyph the user tapped, not its neighbour. Works for both
+  // horizontal and vertical (manga) writing modes since it tests the real rect.
+  function correctCaretOffset(textNode: Text, offset: number, x: number, y: number): number {
+    const len = textNode.textContent?.length ?? 0;
+    if (offset <= 0 || offset > len) return offset;
+
+    const range = document.createRange();
+    range.setStart(textNode, offset - 1);
+    range.setEnd(textNode, offset);
+    for (const rect of range.getClientRects()) {
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return offset - 1;
+      }
+    }
+    return offset;
+  }
+
+  async function handleTextBoxClick(event: MouseEvent, boxId: string) {
+    // Double-click is handled by ondblclick (Anki capture)
+    if (event.detail > 1) return;
+    // User drag-selected text — don't override their selection
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+
+    // Tap-to-reveal (step 1): if this box isn't revealed yet, the first tap
+    // only shows its text — no lookup. Hover-capable devices skip this step.
+    const revealed = canHover || alwaysShowOCR || $activeTextBox === boxId;
+    if (!revealed) {
+      setActiveTextBox(boxId);
+      closePopup();
+      return;
+    }
+
+    // Keep this box marked active so it stays revealed after the tap.
+    setActiveTextBox(boxId);
+
+    const caretRange = document.caretRangeFromPoint?.(event.clientX, event.clientY);
+    if (!caretRange || caretRange.startContainer.nodeType !== Node.TEXT_NODE) {
+      closePopup();
+      return;
+    }
+
+    const textNode = caretRange.startContainer as Text;
+    const offset = correctCaretOffset(
+      textNode,
+      caretRange.startOffset,
+      event.clientX,
+      event.clientY
+    );
+
+    // Each OCR line is a separate text node. To recognise words that wrap
+    // across a line break (e.g. 泣いて / しまう → 泣いてしまう), scan the whole
+    // text box as one continuous string and remember which node each character
+    // came from, so the match can be highlighted across nodes.
+    const boxEl = textNode.parentElement?.closest('.textBox');
+    const segments = boxEl
+      ? collectTextSegments(boxEl)
+      : [{ node: textNode, start: 0, len: textNode.data.length }];
+    const combined = segments.map((s) => s.node.data).join('');
+    const seg = segments.find((s) => s.node === textNode);
+    const combinedOffset = (seg?.start ?? 0) + offset;
+
+    const match = await findBestMatch(combined, combinedOffset);
+    if (!match) {
+      closePopup();
+      return;
+    }
+
+    // Highlight the matched word (custom highlight, not browser selection —
+    // avoids native mobile selection handles / copy bubble). A word that spans
+    // a line break produces one range per text node it touches.
+    highlightWord(rangesForSpan(segments, combinedOffset, combinedOffset + match.utf16Length));
+
+    await lookupAndShow(match.deinflectedText, match.inflectionPath);
+  }
+
+  /** Collects the text-node segments of a text box in reading order, tracking
+   *  each node's start index within the concatenated string. */
+  function collectTextSegments(root: Element): { node: Text; start: number; len: number }[] {
+    const segments: { node: Text; start: number; len: number }[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let pos = 0;
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const t = node as Text;
+      if (t.data.length === 0) continue;
+      segments.push({ node: t, start: pos, len: t.data.length });
+      pos += t.data.length;
+    }
+    return segments;
+  }
+
+  /** Maps a [from, to) range in the concatenated string to one Range per
+   *  text-node segment it overlaps. */
+  function rangesForSpan(
+    segments: { node: Text; start: number; len: number }[],
+    from: number,
+    to: number
+  ): Range[] {
+    const ranges: Range[] = [];
+    for (const seg of segments) {
+      const s = Math.max(from, seg.start);
+      const e = Math.min(to, seg.start + seg.len);
+      if (e > s) {
+        const r = document.createRange();
+        r.setStart(seg.node, s - seg.start);
+        r.setEnd(seg.node, e - seg.start);
+        ranges.push(r);
+      }
+    }
+    return ranges;
+  }
+
+  // The box whose copy button was just used — shows a check mark briefly.
+  let copiedBoxId = $state<string | null>(null);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Copy the whole text box as one sentence with line breaks removed.
+  async function copySentence(event: MouseEvent, lines: string[], boxId: string) {
+    event.stopPropagation();
+    const text = lines.join('');
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(ta);
+    }
+    copiedBoxId = boxId;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      if (copiedBoxId === boxId) copiedBoxId = null;
+    }, 1000);
+  }
+
   function onCopy(event: ClipboardEvent) {
     // Strip line breaks from copied text (Ctrl+C default behavior)
     const selection = window.getSelection()?.toString() || '';
@@ -531,12 +704,14 @@
 </script>
 
 {#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex }, index (`${volumeUuid}-textBox-${index}`)}
+  {@const boxId = `${volumeUuid}-${pageIndex ?? 0}-${index}`}
   <div
     use:handleTextBoxHover={[index, fontSize]}
     class="textBox"
     class:originalMode={isOriginalMode}
     class:forceVisible
     class:alwaysVisible={alwaysShowOCR}
+    class:active={$activeTextBox === boxId}
     style:width={isOriginalMode ? undefined : useMinDimensions ? undefined : width}
     style:height={isOriginalMode ? undefined : useMinDimensions ? undefined : height}
     style:min-width={isOriginalMode ? undefined : useMinDimensions ? width : undefined}
@@ -549,11 +724,47 @@
     style:border
     style:writing-mode={writingMode}
     role="none"
+    onclick={(e) => handleTextBoxClick(e, boxId)}
     oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex)}
     ondblclick={(e) => onDoubleTap(e, lines, blockIndex)}
     oncopy={onCopy}
     {contenteditable}
   >
+    <button
+      class="copyBtn"
+      aria-label="Copy sentence"
+      title="Copy sentence"
+      onpointerdown={(e) => e.stopPropagation()}
+      onclick={(e) => copySentence(e, lines, boxId)}
+      ondblclick={(e) => e.stopPropagation()}
+    >
+      {#if copiedBoxId === boxId}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20 6 9 17l-5-5"></path>
+        </svg>
+      {:else}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      {/if}
+    </button>
     <p>
       {#each lines as line}<span class="ocr-line">{line}</span>{/each}
     </p>
@@ -581,7 +792,8 @@
   }
 
   .textBox:focus,
-  .textBox:hover {
+  .textBox:hover,
+  .textBox.active {
     background: rgb(255, 255, 255);
     border: 1px solid rgba(0, 0, 0, 0);
   }
@@ -604,7 +816,8 @@
   }
 
   .textBox:focus p,
-  .textBox:hover p {
+  .textBox:hover p,
+  .textBox.active p {
     visibility: visible;
   }
 
@@ -635,5 +848,47 @@
   .textBox .ocr-line:not(:last-child)::after {
     content: '\A';
     white-space: pre;
+  }
+
+  /* Copy-sentence button — visible only while the box's text is shown. */
+  .copyBtn {
+    position: absolute;
+    /* Sit flush directly below the box's bottom-left corner: it never overlaps
+       the box's content (so it can't steal taps meant for the text), yet abuts
+       the bottom edge so mouse hover stays continuous (it's also a DOM child, so
+       hovering it keeps the box's :hover active). */
+    top: 100%;
+    left: 0;
+    visibility: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+    writing-mode: horizontal-tb;
+    z-index: 12;
+  }
+
+  .copyBtn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .copyBtn:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+
+  .textBox:focus .copyBtn,
+  .textBox:hover .copyBtn,
+  .textBox.active .copyBtn,
+  .textBox.forceVisible .copyBtn,
+  .textBox.alwaysVisible .copyBtn {
+    visibility: visible;
   }
 </style>

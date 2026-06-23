@@ -25,6 +25,7 @@
   import { Input, Popover, Range, Spinner } from 'flowbite-svelte';
   import MangaPage from './MangaPage.svelte';
   import TextBoxContextMenu from './TextBoxContextMenu.svelte';
+  import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
   import {
     openCreateModal,
     openUpdateModal,
@@ -1272,6 +1273,8 @@
       onClose={() => (showContextMenu = false)}
     />
   {/if}
+
+  <DictionaryPopup />
 {:else if volume === null}
   <!-- Still loading from IndexedDB -->
   <div class="fixed top-1/2 left-1/2 z-50">
