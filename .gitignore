@@ -21,3 +21,6 @@ vite.config.ts.timestamp-*
 # Playwright artifacts
 test-results/
 playwright-report/
+
+# Local deploy scripts (contain server/host details)
+*.local.sh
