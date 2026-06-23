@@ -21,8 +21,7 @@ export interface BundledDictionary {
 }
 
 export const BUNDLED_DICTIONARIES: BundledDictionary[] = [
-  { label: 'Jitendex', filename: 'jitendex-yomitan.zip', titlePrefix: 'Jitendex' },
-  { label: 'JMnedict', filename: 'jmnedict.zip', titlePrefix: 'JMnedict' }
+  { label: 'Jitendex', filename: 'jitendex-yomitan.zip', titlePrefix: 'Jitendex' }
 ];
 
 export type BundledDictState = 'idle' | 'downloading' | 'importing' | 'ready' | 'error';

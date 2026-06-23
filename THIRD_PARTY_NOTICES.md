@@ -42,13 +42,3 @@ license. Jitendex incorporates:
   [EDRDG License](https://www.edrdg.org/edrdg/licence.html).
 - **Example sentences** from [Tatoeba](https://tatoeba.org/), licensed
   CC BY 2.0 FR.
-
-## JMnedict (dictionary data)
-
-`static/jmnedict.zip` is the **JMnedict** dictionary of Japanese proper names,
-packaged in Yomitan format by
-**[jmdict-yomitan](https://github.com/yomidevs/jmdict-yomitan)** and
-redistributed unmodified. JMnedict data is © the Electronic Dictionary Research
-and Development Group ([EDRDG](https://www.edrdg.org/)) and is used under the
-[EDRDG License](https://www.edrdg.org/edrdg/licence.html)
-(Creative Commons Attribution-ShareAlike 4.0).
