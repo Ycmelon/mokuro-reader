@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-  <title>Mokuro</title>
+  <title>Mokurod</title>
 </svelte:head>
 
 <div class="h-[90svh] p-2">

@@ -138,7 +138,7 @@
     <NavBrand>
       <button onclick={navigateToCatalog} class="flex cursor-pointer flex-row items-center gap-2">
         <img src={Icon} alt="icon" class="h-[32px] w-[32px]" />
-        <span class="text-xl font-semibold dark:text-white">Mokuro</span>
+        <span class="text-xl font-semibold dark:text-white">Mokurod</span>
       </button>
     </NavBrand>
     <div class="flex gap-5 md:order-2">
