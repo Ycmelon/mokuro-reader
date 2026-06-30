@@ -9,12 +9,26 @@
     popupGoBack
   } from '$lib/dictionary/lookup';
   import StructuredContent from './StructuredContent.svelte';
-  import { miscSettings } from '$lib/settings';
+  import { miscSettings, settings } from '$lib/settings';
 
   let popupEl: HTMLElement | undefined = $state();
   let popup = $derived($dictPopup);
   let canGoBack = $derived($popupStack.length > 0);
   let popupHeight = $derived($miscSettings.dictionaryPopupHeight ?? 30);
+
+  // Japanese text uses the bundled textbook font unless the user opts out, in
+  // which case it falls back to the pre-bundle stacks. Driven as CSS variables
+  // on the popup so the scoped rules below stay declarative.
+  let headwordFont = $derived(
+    $settings.textbookFont
+      ? "'UD Digi Kyokasho', 'Noto Sans JP', sans-serif"
+      : "'Noto Sans JP', sans-serif"
+  );
+  let definitionFont = $derived(
+    $settings.textbookFont
+      ? "'UD Digi Kyokasho', var(--font-sans, sans-serif)"
+      : 'var(--font-sans, sans-serif)'
+  );
 
   // Cross-reference links inside definitions look like
   // `?query=<encoded-term>&wildcards=off&...`. Intercept them and look the
@@ -76,6 +90,8 @@
     bind:this={popupEl}
     class="dict-popup"
     style:height="{popupHeight}vh"
+    style:--dict-headword-font={headwordFont}
+    style:--dict-definition-font={definitionFont}
     role="dialog"
     aria-label="Dictionary lookup"
     tabindex="-1"
@@ -212,7 +228,7 @@
   .dict-expression {
     font-size: 20px;
     font-weight: 700;
-    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
+    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
   }
 
   /* Alternative writings of the same word (merged by JMdict sequence) */
@@ -220,14 +236,14 @@
     font-size: 15px;
     color: var(--color-gray-400);
     margin-left: 6px;
-    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
+    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
   }
 
   .dict-reading {
     font-size: 13px;
     color: var(--color-gray-400);
     margin-left: 4px;
-    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
+    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
   }
 
   /* Deinflection trace — not part of the dictionary, kept minimal/neutral */
@@ -243,8 +259,9 @@
     font-size: 13px;
     /* Japanese text in definitions and example sentences uses the textbook
        font (restricted to Japanese codepoints via unicode-range in app.css);
-       English glosses fall through to the app's normal default font. */
-    font-family: 'UD Digi Kyokasho', var(--font-sans, sans-serif);
+       English glosses fall through to the app's normal default font. The
+       textbook font is dropped when the textbookFont setting is off. */
+    font-family: var(--dict-definition-font, 'UD Digi Kyokasho', var(--font-sans, sans-serif));
   }
 
   .dict-def {

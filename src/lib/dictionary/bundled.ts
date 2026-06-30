@@ -115,14 +115,26 @@ export async function redownloadBundledDictionary(label: string): Promise<void> 
 
 async function deleteByPrefix(titlePrefix: string): Promise<void> {
   const dicts = await dictDb.dictionaries.filter((d) => d.title.startsWith(titlePrefix)).toArray();
-  for (const d of dicts) {
-    if (d.id === undefined) continue;
-    await dictDb.transaction('rw', dictDb.dictionaries, dictDb.terms, dictDb.tags, async () => {
-      await dictDb.terms.where('dictionaryId').equals(d.id!).delete();
-      await dictDb.tags.where('dictionaryId').equals(d.id!).delete();
-      await dictDb.dictionaries.delete(d.id!);
-    });
-  }
+  if (dicts.length === 0) return;
+
+  const idsToDelete = dicts.map((d) => d.id!).filter((id) => id !== undefined);
+  const remainingCount = await dictDb.dictionaries.count();
+
+  await dictDb.transaction('rw', dictDb.dictionaries, dictDb.terms, dictDb.tags, async () => {
+    // If we're deleting every dictionary in the DB, clear() is a single native
+    // O(1) IDBObjectStore operation — orders of magnitude faster than a
+    // cursor-based where().delete() across ~200k rows.
+    if (idsToDelete.length === remainingCount) {
+      await dictDb.terms.clear();
+      await dictDb.tags.clear();
+    } else {
+      for (const id of idsToDelete) {
+        await dictDb.terms.where('dictionaryId').equals(id).delete();
+        await dictDb.tags.where('dictionaryId').equals(id).delete();
+      }
+    }
+    await dictDb.dictionaries.bulkDelete(idsToDelete);
+  });
 }
 
 const MAX_ATTEMPTS = 2;

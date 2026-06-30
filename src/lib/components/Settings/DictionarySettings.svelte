@@ -28,11 +28,6 @@
   {#snippet header()}Dictionaries{/snippet}
 
   <div class="flex flex-col gap-3">
-    <Helper class="text-xs">
-      These Japanese–English dictionaries are downloaded automatically on first launch and stored on
-      this device for offline use.
-    </Helper>
-
     {#each statuses as status (status.label)}
       <div class="rounded border border-gray-200 px-3 py-2 dark:border-gray-600">
         <div class="flex items-center justify-between gap-2">
