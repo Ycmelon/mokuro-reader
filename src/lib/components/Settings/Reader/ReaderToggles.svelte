@@ -33,6 +33,19 @@
           shortcut: 'T'
         },
         { key: 'boldFont', text: 'Bold font', value: $settings.boldFont },
+        {
+          key: 'textbookFont',
+          text: 'Textbook font',
+          value: $settings.textbookFont,
+          description:
+            'Use the UD Digi Kyokasho textbook font for Japanese text (off = Noto Sans JP)'
+        },
+        {
+          key: 'spreadVerticalText',
+          text: 'Spread vertical text',
+          value: $settings.spreadVerticalText,
+          description: 'Widen vertical OCR columns to fill the text box width'
+        },
         { key: 'pageNum', text: 'Show page number', value: $settings.pageNum },
         { key: 'charCount', text: 'Show character count', value: $settings.charCount },
         { key: 'bounds', text: 'Bounds', value: $settings.bounds },

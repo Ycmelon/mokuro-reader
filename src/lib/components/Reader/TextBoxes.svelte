@@ -134,6 +134,14 @@
   );
 
   let fontWeight = $derived($settings.boldFont ? 'bold' : '400');
+  // Japanese OCR text uses the bundled textbook font unless the user opts out,
+  // in which case it falls back to the pre-bundle 'Noto Sans JP' stack. Applied
+  // inline on each .textBox so the inner <p> inherits it (see `.textBox p`).
+  let ocrFontFamily = $derived(
+    $settings.textbookFont
+      ? "'UD Digi Kyokasho', 'Noto Sans JP', sans-serif"
+      : "'Noto Sans JP', sans-serif"
+  );
   let display = $derived($settings.displayOCR ? 'block' : 'none');
   let alwaysShowOCR = $derived($settings.alwaysShowOCR);
   let border = $derived($settings.textBoxBorders ? '1px solid red' : 'none');
@@ -344,7 +352,7 @@
         }
 
         // Spread the columns to fill the width (font size already finalized).
-        if (vertical) fillVerticalColumns(element);
+        if (vertical && $settings.spreadVerticalText) fillVerticalColumns(element);
       });
     };
 
@@ -717,6 +725,7 @@
     style:top
     style:font-size={adjustedFontSizes.get(index) || fontSize}
     style:font-weight={fontWeight}
+    style:font-family={ocrFontFamily}
     style:display
     style:border
     style:writing-mode={writingMode}
@@ -774,7 +783,8 @@
     line-height: 1.1em;
     background-color: rgb(255, 255, 255);
     font-weight: var(--bold);
-    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
+    /* Inherit the font set inline on .textBox (driven by the textbookFont setting). */
+    font-family: inherit;
     z-index: 11;
     user-select: text;
     -webkit-user-select: text;

@@ -133,6 +133,14 @@ export type Settings = {
   displayOCR: boolean;
   alwaysShowOCR: boolean;
   boldFont: boolean;
+  /** Use the bundled UD Digi Kyokasho textbook font for Japanese OCR text and
+   *  dictionary text. When false, Japanese text falls back to 'Noto Sans JP'
+   *  (the behaviour before the textbook font was bundled). */
+  textbookFont: boolean;
+  /** Spread vertical (top-to-bottom) OCR columns to fill the text box width.
+   *  When false, columns keep their natural advance and hug the right edge
+   *  (the behaviour before column spreading was added). */
+  spreadVerticalText: boolean;
   pageNum: boolean;
   charCount: boolean;
   bounds: boolean;
@@ -258,6 +266,8 @@ const defaultSettings: Settings = {
   textEditable: false,
   textBoxBorders: false,
   boldFont: false,
+  textbookFont: true,
+  spreadVerticalText: true,
   pageNum: true,
   charCount: false,
   mobile: false,
