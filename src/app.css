@@ -9,6 +9,24 @@
 /* Custom dark mode variant */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* UD Digi Kyokasho (educational textbook font) — used for OCR text boxes and
+   Japanese text in the dictionary. Self-hosted woff2; full-width monospace `N`
+   variant keeps vertical columns evenly spaced.
+
+   `unicode-range` restricts the font to Japanese codepoints (kana, kanji, CJK
+   punctuation, full/half-width forms). Latin/English characters fall through to
+   the next family in each font stack, so only Japanese text uses this font. */
+@font-face {
+  font-family: 'UD Digi Kyokasho';
+  src: url('/fonts/UDDigiKyokashoN-R.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range:
+    U+2E80-2EFF, U+3000-303F, U+3040-309F, U+30A0-30FF, U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF,
+    U+F900-FAFF, U+FF00-FFEF;
+}
+
 /* Flowbite component sources */
 @source '../node_modules/flowbite-svelte/dist';
 @source '../node_modules/flowbite-svelte-icons/dist';

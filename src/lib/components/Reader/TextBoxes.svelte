@@ -778,7 +778,7 @@
     position: absolute;
     line-height: 1.1em;
     font-size: 16pt;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
     /* Word wrapping controlled dynamically by JavaScript */
     border: 1px solid rgba(0, 0, 0, 0);
     z-index: 11;
@@ -802,10 +802,13 @@
     visibility: hidden;
     /* Word wrapping controlled dynamically by JavaScript */
     letter-spacing: 0.1em;
+    /* Base column advance for vertical text. After font sizing, vertical boxes
+       get a wider line-height set inline (see handleTextBoxHover) so the columns
+       fill the box width instead of hugging the right edge. */
     line-height: 1.1em;
     background-color: rgb(255, 255, 255);
     font-weight: var(--bold);
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
     z-index: 11;
     user-select: text;
     -webkit-user-select: text;

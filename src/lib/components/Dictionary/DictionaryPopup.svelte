@@ -212,7 +212,7 @@
   .dict-expression {
     font-size: 20px;
     font-weight: 700;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
   }
 
   /* Alternative writings of the same word (merged by JMdict sequence) */
@@ -220,14 +220,14 @@
     font-size: 15px;
     color: var(--color-gray-400);
     margin-left: 6px;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
   }
 
   .dict-reading {
     font-size: 13px;
     color: var(--color-gray-400);
     margin-left: 4px;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif;
   }
 
   /* Deinflection trace — not part of the dictionary, kept minimal/neutral */
@@ -241,6 +241,10 @@
 
   .dict-definitions {
     font-size: 13px;
+    /* Japanese text in definitions and example sentences uses the textbook
+       font (restricted to Japanese codepoints via unicode-range in app.css);
+       English glosses fall through to the app's normal default font. */
+    font-family: 'UD Digi Kyokasho', var(--font-sans, sans-serif);
   }
 
   .dict-def {
