@@ -7,6 +7,7 @@
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { setInstantAnimations } from '$lib/reader/animator';
   import { keyboardShouldIgnore } from '$lib/reader/input/gesture-target';
+  import { activeTextBox, dictPopup } from '$lib/dictionary/lookup';
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import {
     effectiveVolumeSettings,
@@ -77,8 +78,16 @@
 
   let start: Date;
 
+  // When an edge tap-zone press lands while a text box or dictionary popup is
+  // open, that tap is a dismissal: the document-level handler in
+  // DictionaryPopup clears the selection, and navigation must NOT also fire.
+  // Captured at mousedown (before the document handler clears the stores) and
+  // consumed by the pointer-driven left/right below.
+  let pressDismissesSelection = false;
+
   function mouseDown() {
     start = new Date();
+    pressDismissesSelection = $activeTextBox !== null || $dictPopup !== null;
   }
 
   export function toggleHasCover(volumeId: string) {
@@ -89,7 +98,15 @@
     // changes (hasCover flows into the content-size prop).
   }
 
+  /** An edge tap-zone press that only dismisses an open selection — no nav. */
+  function consumeDismissPress(ingoreTimeOut?: boolean): boolean {
+    if (ingoreTimeOut || !pressDismissesSelection) return false;
+    pressDismissesSelection = false;
+    return true;
+  }
+
   function left(_e: any, ingoreTimeOut?: boolean) {
+    if (consumeDismissPress(ingoreTimeOut)) return;
     if (volumeSettings.rightToLeft) {
       // RTL: left is forward
       navigateForward(ingoreTimeOut);
@@ -100,6 +117,7 @@
   }
 
   function right(_e: any, ingoreTimeOut?: boolean) {
+    if (consumeDismissPress(ingoreTimeOut)) return;
     if (volumeSettings.rightToLeft) {
       // RTL: right is backward - check target page mode
       navigateBackward(ingoreTimeOut);
