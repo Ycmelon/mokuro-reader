@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Page } from '$lib/types';
   import TextBoxes from './TextBoxes.svelte';
+  import { imageFilter } from '$lib/settings';
 
   interface ContextMenuData {
     x: number;
@@ -65,12 +66,23 @@
   data-page-index={pageIndex}
   style:width={`${page.img_width}px`}
   style:height={`${page.img_height}px`}
-  style:background-image={url}
-  style:background-size="contain"
-  style:background-repeat="no-repeat"
-  style:background-position="center"
   class="relative"
 >
+  <!--
+    The page image lives in its own filtered layer (not on the page div, and
+    not on a shared ancestor) so invert/grayscale don't pull the text boxes
+    into a stacking context with it. That keeps the OCR boxes (z-11) above the
+    paged edge-flip buttons (z-10) while the image stays below them — see
+    Reader.svelte's edge buttons.
+  -->
+  <div
+    class="manga-page-image absolute inset-0"
+    style:background-image={url}
+    style:background-size="contain"
+    style:background-repeat="no-repeat"
+    style:background-position="center"
+    style:filter={$imageFilter}
+  ></div>
   <TextBoxes
     {page}
     src={src ?? undefined}

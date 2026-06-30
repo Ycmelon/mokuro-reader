@@ -1,7 +1,8 @@
 <script lang="ts">
   import { clamp, promptConfirmation } from '$lib/util';
   import type { Page } from '$lib/types';
-  import { settings, volumes } from '$lib/settings';
+  import { settings, volumes, imageFilter } from '$lib/settings';
+  import { extractPageImageUrl } from '$lib/reader/page-image';
   import {
     showCropper,
     openCreateModal,
@@ -331,23 +332,6 @@
     };
   }
 
-  function getImageUrlFromElement(element: HTMLElement): string | null {
-    // Traverse up to find the MangaPage div with background-image
-    let current: HTMLElement | null = element;
-    while (current) {
-      const bgImage = getComputedStyle(current).backgroundImage;
-      if (bgImage && bgImage !== 'none') {
-        // Extract URL from "url(...)"
-        const match = bgImage.match(/url\(["']?(.+?)["']?\)/);
-        if (match) {
-          return match[1];
-        }
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-
   function getSelectedText(): string {
     // Get actual selected text from the DOM
     const selection = window.getSelection();
@@ -366,8 +350,7 @@
 
     // Get image URL
     const url =
-      getImageUrlFromElement(event.target as HTMLElement) ||
-      (src ? URL.createObjectURL(src) : null);
+      extractPageImageUrl(event.target as HTMLElement) || (src ? URL.createObjectURL(src) : null);
 
     if (!url) return;
 
@@ -723,6 +706,7 @@
     style:display
     style:border
     style:writing-mode={writingMode}
+    style:filter={$imageFilter}
     role="none"
     onclick={(e) => handleTextBoxClick(e, boxId)}
     oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex)}

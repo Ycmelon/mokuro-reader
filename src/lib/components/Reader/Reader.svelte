@@ -2,7 +2,7 @@
   import { run } from 'svelte/legacy';
   import type { TransitionConfig } from 'svelte/transition';
 
-  import { currentSeries, currentVolume, currentVolumeData } from '$lib/catalog';
+  import { currentSeries, currentVolume, currentVolumeData, volumesLoaded } from '$lib/catalog';
   import PagedViewport from './PagedViewport.svelte';
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { setInstantAnimations } from '$lib/reader/animator';
@@ -10,7 +10,6 @@
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import {
     effectiveVolumeSettings,
-    imageFilter,
     progress,
     settings,
     updateProgress,
@@ -21,6 +20,7 @@
     type ContinuousZoomMode,
     type ScheduleSettingKey
   } from '$lib/settings';
+  import { extractPageImageUrl } from '$lib/reader/page-image';
   import { clamp, fireExstaticEvent, resetScrollPosition } from '$lib/util';
   import { Input, Popover, Range, Spinner } from 'flowbite-svelte';
   import MangaPage from './MangaPage.svelte';
@@ -720,25 +720,10 @@
   let showContextMenu = $state(false);
   let contextMenuData = $state<ContextMenuData | null>(null);
 
-  // Extract image URL from an element by traversing up to find background-image
-  function extractImageUrlFromElement(element: HTMLElement | null): string | null {
-    if (!element) return null;
-    let current: HTMLElement | null = element;
-    while (current) {
-      const bgImage = getComputedStyle(current).backgroundImage;
-      if (bgImage && bgImage !== 'none') {
-        const match = bgImage.match(/url\(["']?(.+?)["']?\)/);
-        if (match) return match[1];
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-
   function handleTextBoxContextMenu(data: ContextMenuData) {
     // Capture the image URL immediately while the DOM is in a known good state
     // This prevents issues when Yomitan or other extensions modify the DOM
-    const imageUrl = extractImageUrlFromElement(data.imgElement) ?? undefined;
+    const imageUrl = extractPageImageUrl(data.imgElement) ?? undefined;
     // Prefer pageIndex from the data (set by TextBoxes), fall back to progress store
     const pageIndex =
       data.pageIndex ??
@@ -1202,7 +1187,15 @@
           onmousedown={mouseDown}
           onmouseup={right}
         ></button>
-        <div class="grid" style:filter={$imageFilter} id="manga-panel">
+        <!--
+          The invert/grayscale filter is applied per page-image and per text
+          box (MangaPage / TextBoxes), NOT on this shared panel — putting it
+          here would make the panel a stacking context that traps the OCR
+          boxes (z-11) below the edge page-flip buttons (z-10). Keeping the
+          panel filter-free lets the image sit below the buttons and the boxes
+          above them, so both edge navigation and edge box taps work.
+        -->
+        <div class="grid" id="manga-panel">
           {#key page}
             <div
               class="col-start-1 row-start-1 flex flex-row"
@@ -1275,13 +1268,8 @@
   {/if}
 
   <DictionaryPopup />
-{:else if volume === null}
-  <!-- Still loading from IndexedDB -->
-  <div class="fixed top-1/2 left-1/2 z-50">
-    <Spinner />
-  </div>
-{:else}
-  <!-- Volume not found or no data -->
+{:else if $volumesLoaded && !volume}
+  <!-- The volumes table has loaded and this UUID genuinely isn't in it. -->
   <div class="flex h-screen w-screen flex-col items-center justify-center gap-4">
     <p class="text-lg text-gray-400">Volume not found</p>
     <button
@@ -1290,5 +1278,11 @@
     >
       Go Back
     </button>
+  </div>
+{:else}
+  <!-- Still loading: the volumes table or this volume's data/progress hasn't
+       resolved yet. Show a spinner rather than flashing "not found". -->
+  <div class="fixed top-1/2 left-1/2 z-50">
+    <Spinner />
   </div>
 {/if}

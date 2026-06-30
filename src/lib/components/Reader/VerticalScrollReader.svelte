@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Page, VolumeMetadata } from '$lib/types';
   import type { VolumeSettings } from '$lib/settings/volume-data';
-  import { settings, imageFilter } from '$lib/settings';
+  import { settings } from '$lib/settings';
   import { matchFilesToPages } from '$lib/reader/image-cache';
   import { getCharCount } from '$lib/util/count-chars';
   import { activityTracker } from '$lib/util/activity-tracker';
@@ -482,7 +482,7 @@
     style:overflow-anchor="none"
     onscroll={handleScroll}
   >
-    <div bind:this={zoomSpacerEl} style:filter={$imageFilter}>
+    <div bind:this={zoomSpacerEl}>
       <!-- transform-origin is set by applyVerticalZoomLayout -->
       <div bind:this={zoomWrapperEl}>
         <!-- Centering spacer -->

@@ -90,8 +90,8 @@ describe('imageFilter', () => {
     updateSetting('grayscale', false);
   });
 
-  it('is both-off by default', () => {
-    expect(get(imageFilter)).toBe('invert(0) grayscale(0)');
+  it('is none when both are off (no stacking context over the page)', () => {
+    expect(get(imageFilter)).toBe('none');
   });
 
   it('reflects invert only', () => {

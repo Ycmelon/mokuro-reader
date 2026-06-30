@@ -658,8 +658,15 @@ export const grayscaleActive = derived([settings, currentMinute], ([$settings, _
  */
 export const imageFilter = derived(
   [invertColorsActive, grayscaleActive],
-  ([$invertColorsActive, $grayscaleActive]) =>
-    `invert(${$invertColorsActive ? 1 : 0}) grayscale(${$grayscaleActive ? 1 : 0})`
+  ([$invertColorsActive, $grayscaleActive]) => {
+    // Emit 'none' when no filter is active. A non-'none' filter (even the
+    // no-op invert(0) grayscale(0)) makes #manga-panel form a stacking
+    // context, which traps the OCR text boxes (z-index 11) below the edge
+    // page-flip buttons (z-index 10) — so tapping a text box near the page
+    // edge would flip the page instead of activating the box.
+    if (!$invertColorsActive && !$grayscaleActive) return 'none';
+    return `invert(${$invertColorsActive ? 1 : 0}) grayscale(${$grayscaleActive ? 1 : 0})`;
+  }
 );
 
 /**

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Page, VolumeMetadata } from '$lib/types';
   import type { VolumeSettings } from '$lib/settings/volume-data';
-  import { settings, imageFilter } from '$lib/settings';
+  import { settings } from '$lib/settings';
   import { matchFilesToPages } from '$lib/reader/image-cache';
   import { getCharCount } from '$lib/util/count-chars';
   import { activityTracker } from '$lib/util/activity-tracker';
@@ -505,7 +505,6 @@
       class="flex"
       style:align-items="center"
       style:direction={rtl ? 'rtl' : 'ltr'}
-      style:filter={$imageFilter}
     >
       <!-- transform-origin is set by applyHorizontalZoomLayout (top right in RTL) -->
       <div

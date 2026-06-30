@@ -61,7 +61,10 @@ async function loadCurrentVolumeData(volume: VolumeMetadata): Promise<VolumeData
 }
 
 // Single source of truth from the database
-export const volumes = readable<Record<string, VolumeMetadata>>({}, (set) => {
+// `undefined` until the first IndexedDB read resolves, then the volume map.
+// Both `volumes` and `volumesLoaded` derive from this single source so they
+// update in the same tick (no race that could flash "not found").
+const volumesSource = readable<Record<string, VolumeMetadata> | undefined>(undefined, (set) => {
   const subscription = liveQuery(async () => {
     const volumesArray = await db.volumes.toArray();
 
@@ -79,6 +82,17 @@ export const volumes = readable<Record<string, VolumeMetadata>>({}, (set) => {
 
   return () => subscription.unsubscribe();
 });
+
+export const volumes = derived(volumesSource, ($source) => $source ?? {});
+
+/**
+ * True once the volumes table has been read from IndexedDB at least once.
+ * The `volumes` store starts as an empty `{}`, which is indistinguishable
+ * from "loaded but empty" — consumers need this flag to tell "still loading"
+ * apart from "this volume genuinely doesn't exist" (otherwise a reader shows
+ * a "not found" flash before the DB read resolves).
+ */
+export const volumesLoaded = derived(volumesSource, ($source) => $source !== undefined);
 
 // Merge local volumes with cloud placeholders and library placeholders
 export const volumesWithPlaceholders = derived(
