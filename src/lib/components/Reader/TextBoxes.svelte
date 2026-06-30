@@ -645,9 +645,20 @@
     const seg = segments.find((s) => s.node === textNode);
     const combinedOffset = (seg?.start ?? 0) + offset;
 
+    // Immediate feedback: highlight the tapped character before the (async)
+    // lookup, so a tap always shows something landed — even if no word matches.
+    // Extend past a surrogate pair so we never split an astral code point.
+    const tappedCp = combined.codePointAt(combinedOffset);
+    const tappedLen = tappedCp !== undefined && tappedCp > 0xffff ? 2 : 1;
+    const tappedCharRanges = rangesForSpan(segments, combinedOffset, combinedOffset + tappedLen);
+    highlightWord(tappedCharRanges);
+
     const match = await findBestMatch(combined, combinedOffset);
     if (!match) {
+      // Close any open popup but keep the tapped character highlighted as
+      // feedback (closePopup clears the highlight, so re-apply it after).
       closePopup();
+      highlightWord(tappedCharRanges);
       return;
     }
 
