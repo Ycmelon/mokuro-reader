@@ -39,6 +39,32 @@ export function toClipboard(event: MouseEvent) {
   }
 }
 
+/**
+ * Writes text to the clipboard, falling back to a hidden textarea + execCommand
+ * for browsers without the async Clipboard API (older mobile WebViews).
+ */
+export async function copyTextToClipboard(text: string): Promise<void> {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    // Fall through to the legacy path below.
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+  } catch {
+    /* ignore */
+  }
+  document.body.removeChild(ta);
+}
+
 type ExtaticPayload = {
   title: string;
   volumeName: string;

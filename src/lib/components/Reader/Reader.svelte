@@ -7,7 +7,14 @@
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { setInstantAnimations } from '$lib/reader/animator';
   import { keyboardShouldIgnore } from '$lib/reader/input/gesture-target';
-  import { activeTextBox, dictPopup } from '$lib/dictionary/lookup';
+  import { activeTextBox, dictPopup, closePopup } from '$lib/dictionary/lookup';
+  import {
+    selectMode,
+    enterSelectMode,
+    exitSelectMode,
+    toggleSelection
+  } from '$lib/reader/text-selection';
+  import SelectionToolbar from './SelectionToolbar.svelte';
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import {
     effectiveVolumeSettings,
@@ -346,6 +353,10 @@
         toggleContinuousScroll();
         return;
       case 'Escape':
+        if ($selectMode) {
+          exitSelectMode();
+          return;
+        }
         navigateBack();
         return;
       default:
@@ -734,6 +745,7 @@
     textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
     imageUrl?: string; // Captured at right-click time for reliability
     pageIndex?: number; // Which page the context menu was opened on
+    boxId?: string; // Identity of the box, for seeding multi-select
   }
   let showContextMenu = $state(false);
   let contextMenuData = $state<ContextMenuData | null>(null);
@@ -755,6 +767,13 @@
       pageIndex
     };
     showContextMenu = true;
+  }
+
+  function handleContextMenuSelect() {
+    if (!contextMenuData?.boxId) return;
+    enterSelectMode();
+    closePopup();
+    toggleSelection(contextMenuData.boxId, contextMenuData.lines.join(''));
   }
 
   async function handleContextMenuAddToAnki(selection: string) {
@@ -1082,6 +1101,7 @@
   />
   <SettingsButton visible={overlaysVisible} />
   <TextBoxPicker />
+  <SelectionToolbar />
   {#if overlaysVisible}
     <Popover
       placement="bottom"
@@ -1281,6 +1301,7 @@
       onCopy={() => {}}
       onCopyRaw={() => {}}
       onAddToAnki={handleContextMenuAddToAnki}
+      onSelect={handleContextMenuSelect}
       onClose={() => (showContextMenu = false)}
     />
   {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { clamp, promptConfirmation } from '$lib/util';
+  import { selection, selectMode, toggleSelection } from '$lib/reader/text-selection';
   import type { Page } from '$lib/types';
   import { settings, volumes, imageFilter } from '$lib/settings';
   import { extractPageImageUrl } from '$lib/reader/page-image';
@@ -25,6 +26,7 @@
     imgElement: HTMLElement | null;
     textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
     pageIndex?: number;
+    boxId?: string; // Identity of the box, for seeding multi-select
   }
 
   interface Props {
@@ -194,14 +196,6 @@
       originalInPx = minFontSize;
     }
 
-    // Exclude the copy button from measurement: as an absolutely-positioned
-    // child sitting outside the box it would otherwise inflate
-    // scrollHeight/scrollWidth and make every box look overflowing (shrinking
-    // the font to the minimum). It's display:none only while measuring.
-    const copyBtn = element.querySelector<HTMLElement>('.copyBtn');
-    const prevCopyDisplay = copyBtn?.style.display ?? '';
-    if (copyBtn) copyBtn.style.display = 'none';
-
     // Check if content overflows at a given font size
     const isOverflowingAt = (size: number) => {
       element.style.fontSize = `${size}px`;
@@ -267,7 +261,6 @@
     if (!isOverflowingAt(thresholdSize)) {
       // Wrapping allows at least 1.3x - search for the actual optimal wrap size
       const wrapSize = findOptimalSize();
-      if (copyBtn) copyBtn.style.display = prevCopyDisplay;
       return {
         finalSize: wrapSize,
         useWrapping: true,
@@ -276,7 +269,6 @@
     }
 
     // Wrapping doesn't help enough, use nowrap
-    if (copyBtn) copyBtn.style.display = prevCopyDisplay;
     return {
       finalSize: noWrapSize,
       useWrapping: false,
@@ -521,7 +513,12 @@
     }
   }
 
-  function handleContextMenu(event: MouseEvent, lines: string[], blockIndex: number) {
+  function handleContextMenu(
+    event: MouseEvent,
+    lines: string[],
+    blockIndex: number,
+    boxId: string
+  ) {
     // Only show custom context menu if enabled in settings
     if (!$settings.textBoxContextMenu) return;
 
@@ -537,7 +534,8 @@
       lines,
       imgElement: event.target as HTMLElement,
       textBox,
-      pageIndex
+      pageIndex,
+      boxId
     });
   }
 
@@ -585,12 +583,21 @@
     return offset;
   }
 
-  async function handleTextBoxClick(event: MouseEvent, boxId: string) {
+  async function handleTextBoxClick(event: MouseEvent, boxId: string, lines: string[]) {
     // Double-click is handled by ondblclick (Anki capture)
     if (event.detail > 1) return;
     // User drag-selected text — don't override their selection
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
+
+    // Select mode: a tap toggles this box in/out of the ordered selection
+    // instead of doing a dictionary lookup. Reveal the box so it stays readable.
+    if ($selectMode) {
+      setActiveTextBox(boxId);
+      closePopup();
+      toggleSelection(boxId, lines.join(''));
+      return;
+    }
 
     // Tap-to-reveal (step 1): if this box isn't revealed yet, the first tap
     // only shows its text — no lookup. Hover-capable devices skip this step.
@@ -681,38 +688,6 @@
     return ranges;
   }
 
-  // The box whose copy button was just used — shows a check mark briefly.
-  let copiedBoxId = $state<string | null>(null);
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
-
-  // Copy the whole text box as one sentence with line breaks removed.
-  async function copySentence(event: MouseEvent, lines: string[], boxId: string) {
-    event.stopPropagation();
-    const text = lines.join('');
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-      } catch {
-        /* ignore */
-      }
-      document.body.removeChild(ta);
-    }
-    copiedBoxId = boxId;
-    clearTimeout(copiedTimer);
-    copiedTimer = setTimeout(() => {
-      if (copiedBoxId === boxId) copiedBoxId = null;
-    }, 1000);
-  }
-
   function onCopy(event: ClipboardEvent) {
     // Strip line breaks from copied text (Ctrl+C default behavior)
     const selection = window.getSelection()?.toString() || '';
@@ -724,6 +699,8 @@
 
 {#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex, vertical }, index (`${volumeUuid}-textBox-${index}`)}
   {@const boxId = `${volumeUuid}-${pageIndex ?? 0}-${index}`}
+  {@const selOrder = $selection.findIndex((e) => e.id === boxId) + 1}
+  {@const isSelected = selOrder > 0}
   <div
     use:handleTextBoxHover={[index, fontSize, vertical]}
     class="textBox"
@@ -731,6 +708,7 @@
     class:forceVisible
     class:alwaysVisible={alwaysShowOCR}
     class:active={$activeTextBox === boxId}
+    class:selected={isSelected}
     style:width={isOriginalMode ? undefined : useMinDimensions ? undefined : width}
     style:height={isOriginalMode ? undefined : useMinDimensions ? undefined : height}
     style:min-width={isOriginalMode ? undefined : useMinDimensions ? width : undefined}
@@ -744,47 +722,15 @@
     style:writing-mode={writingMode}
     style:filter={$imageFilter}
     role="none"
-    onclick={(e) => handleTextBoxClick(e, boxId)}
-    oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex)}
+    onclick={(e) => handleTextBoxClick(e, boxId, lines)}
+    oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex, boxId)}
     ondblclick={(e) => onDoubleTap(e, lines, blockIndex)}
     oncopy={onCopy}
     {contenteditable}
   >
-    <button
-      class="copyBtn"
-      aria-label="Copy sentence"
-      title="Copy sentence"
-      onpointerdown={(e) => e.stopPropagation()}
-      onclick={(e) => copySentence(e, lines, boxId)}
-      ondblclick={(e) => e.stopPropagation()}
-    >
-      {#if copiedBoxId === boxId}
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M20 6 9 17l-5-5"></path>
-        </svg>
-      {:else}
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-      {/if}
-    </button>
+    {#if isSelected}
+      <span class="selectBadge" aria-hidden="true">{selOrder}</span>
+    {/if}
     <p>
       {#each lines as line}<span class="ocr-line">{line}</span>{/each}
     </p>
@@ -873,45 +819,41 @@
     white-space: pre;
   }
 
-  /* Copy-sentence button — visible only while the box's text is shown. */
-  .copyBtn {
+  /* Multi-select: a selected box reads like a revealed box (opaque background
+     covering the whole box so the manga panel behind it is hidden, text shown),
+     with a blue outline + order badge marking it as selected. The tint is baked
+     into an OPAQUE colour (≈12% blue over white) rather than a translucent layer
+     so nothing shows through the box's empty (non-text) area. */
+  .textBox.selected {
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+    background: #e5ecfd;
+  }
+
+  .textBox.selected p {
+    visibility: visible;
+    background-color: #e5ecfd;
+  }
+
+  .selectBadge {
     position: absolute;
-    /* Sit flush directly below the box's bottom-left corner: it never overlaps
-       the box's content (so it can't steal taps meant for the text), yet abuts
-       the bottom edge so mouse hover stays continuous (it's also a DOM child, so
-       hovering it keeps the box's :hover active). */
-    top: 100%;
-    left: 0;
-    visibility: hidden;
+    top: -10px;
+    left: -10px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.55);
+    border-radius: 999px;
+    background: #2563eb;
     color: #fff;
-    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    /* Keep the badge upright inside vertical (vertical-rl) text boxes. */
     writing-mode: horizontal-tb;
-    z-index: 12;
-  }
-
-  .copyBtn svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .copyBtn:hover {
-    background: rgba(0, 0, 0, 0.75);
-  }
-
-  .textBox:focus .copyBtn,
-  .textBox:hover .copyBtn,
-  .textBox.active .copyBtn,
-  .textBox.forceVisible .copyBtn,
-  .textBox.alwaysVisible .copyBtn {
-    visibility: visible;
+    z-index: 13;
+    pointer-events: none;
   }
 </style>
