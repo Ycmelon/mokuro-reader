@@ -53,6 +53,9 @@
     useMinDimensions: boolean;
     isOriginalMode: boolean;
     blockIndex: number; // Original index in page.blocks
+    /** True for vertical (top-to-bottom) text — columns get spread to fill the
+     *  box width after font sizing. */
+    vertical: boolean;
   }
 
   let textBoxes = $derived(
@@ -117,7 +120,8 @@
           area,
           useMinDimensions: $settings.fontSize !== 'auto' && !isOriginalMode,
           isOriginalMode,
-          blockIndex
+          blockIndex,
+          vertical
         };
 
         return textBox;
@@ -280,9 +284,38 @@
     };
   }
 
+  // Spread vertical text columns to fill the box's full width.
+  //
+  // Runs AFTER the font has been sized against natural (1.1em) spacing, so the
+  // chosen font size is unchanged — we only widen the gaps between the already
+  // laid-out columns to consume the horizontal slack that made the text hug the
+  // right edge. line-height is the column advance in vertical writing modes, so
+  // scaling it by (boxWidth / contentWidth) makes the columns tile the full
+  // width exactly. Measured (not computed from line count) so wrapped columns
+  // are handled correctly. Only ever widens — never compresses.
+  function fillVerticalColumns(element: HTMLDivElement) {
+    const p = element.querySelector<HTMLParagraphElement>('p');
+    if (!p) return;
+
+    // Reset any previous override so we measure the natural column extent.
+    p.style.lineHeight = '';
+    const contentWidth = p.offsetWidth; // block axis (horizontal) = columns' span
+    const boxWidth = element.clientWidth;
+    if (contentWidth <= 0 || boxWidth <= contentWidth) return;
+
+    // Read the natural column advance straight off the (just-reset) element
+    // instead of recomputing it, so this stays in sync with the CSS
+    // line-height rather than duplicating its `1.1em` as a magic number.
+    const naturalLineHeight = parseFloat(getComputedStyle(p).lineHeight);
+    if (!Number.isFinite(naturalLineHeight) || naturalLineHeight <= 0) return;
+
+    const fillLineHeight = naturalLineHeight * (boxWidth / contentWidth);
+    p.style.lineHeight = `${fillLineHeight}px`;
+  }
+
   // Handle hover event to calculate resize on demand (only for auto font sizing)
-  function handleTextBoxHover(element: HTMLDivElement, params: [number, string]) {
-    const [index, initialFontSize] = params;
+  function handleTextBoxHover(element: HTMLDivElement, params: [number, string, boolean]) {
+    const [index, initialFontSize, vertical] = params;
 
     const calculate = () => {
       // Skip if already processed, OCR is hidden, or using manual font size
@@ -317,6 +350,9 @@
         if (finalSize < originalInPx) {
           adjustedFontSizes.set(index, `${finalSize}px`);
         }
+
+        // Spread the columns to fill the width (font size already finalized).
+        if (vertical) fillVerticalColumns(element);
       });
     };
 
@@ -686,10 +722,10 @@
   }
 </script>
 
-{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex }, index (`${volumeUuid}-textBox-${index}`)}
+{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex, vertical }, index (`${volumeUuid}-textBox-${index}`)}
   {@const boxId = `${volumeUuid}-${pageIndex ?? 0}-${index}`}
   <div
-    use:handleTextBoxHover={[index, fontSize]}
+    use:handleTextBoxHover={[index, fontSize, vertical]}
     class="textBox"
     class:originalMode={isOriginalMode}
     class:forceVisible
