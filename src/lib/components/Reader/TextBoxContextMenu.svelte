@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { MessagesOutline } from 'flowbite-svelte-icons';
+
   interface Props {
     x: number;
     y: number;
@@ -9,6 +11,7 @@
     onCopyRaw: () => void;
     onAddToAnki: (selection: string) => void;
     onSelect: () => void;
+    onExplain: (text: string) => void;
     onClose: () => void;
   }
 
@@ -22,6 +25,7 @@
     onCopyRaw,
     onAddToAnki,
     onSelect,
+    onExplain,
     onClose
   }: Props = $props();
 
@@ -125,13 +129,34 @@
     }
   }
 
+  // A menu action fires on `pointerup` and removes this menu synchronously.
+  // The same tap still produces a trailing `click` — a real mouse click, or
+  // the compatibility click the browser synthesises after `touchend`. With the
+  // menu already gone, that click hit-tests whatever is now under the pointer,
+  // which is usually a text box sitting beneath the menu, and activates it
+  // (e.g. toggling a stray second box into a multi-select). Swallow that single
+  // trailing click, then close.
+  function closeAfterAction() {
+    let timer: ReturnType<typeof setTimeout>;
+    const swallow = (ev: Event) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      window.removeEventListener('click', swallow, true);
+      clearTimeout(timer);
+    };
+    window.addEventListener('click', swallow, true);
+    // If no trailing click arrives (e.g. keyboard activation), stop listening.
+    timer = setTimeout(() => window.removeEventListener('click', swallow, true), 700);
+    onClose();
+  }
+
   function copySelection(e: Event) {
     e.preventDefault();
     e.stopPropagation();
     const text = selection.replace(/[\n\r\t]/g, '');
     copyToClipboard(text);
     onCopy();
-    onClose();
+    closeAfterAction();
   }
 
   function copySelectionRaw(e: Event) {
@@ -139,7 +164,7 @@
     e.stopPropagation();
     copyToClipboard(selection);
     onCopyRaw();
-    onClose();
+    closeAfterAction();
   }
 
   function copyAll(e: Event) {
@@ -147,7 +172,7 @@
     e.stopPropagation();
     copyToClipboard(fullTextStripped);
     onCopy();
-    onClose();
+    closeAfterAction();
   }
 
   function copyAllRaw(e: Event) {
@@ -156,21 +181,28 @@
     const text = lines.join('\n');
     copyToClipboard(text);
     onCopyRaw();
-    onClose();
+    closeAfterAction();
   }
 
   function handleAddToAnki(e: Event) {
     e.preventDefault();
     e.stopPropagation();
     onAddToAnki(selection);
-    onClose();
+    closeAfterAction();
   }
 
   function handleSelect(e: Event) {
     e.preventDefault();
     e.stopPropagation();
     onSelect();
-    onClose();
+    closeAfterAction();
+  }
+
+  function handleExplain(e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    onExplain(fullTextStripped);
+    closeAfterAction();
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -251,6 +283,11 @@
       <span>Add to Anki</span>
     </button>
   {/if}
+  <div class="divider"></div>
+  <button type="button" class="menu-item" onpointerup={handleExplain}>
+    <MessagesOutline size="sm" />
+    <span>Explain</span>
+  </button>
 </div>
 
 <style>

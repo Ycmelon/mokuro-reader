@@ -15,6 +15,7 @@
   import DictionarySettings from './DictionarySettings.svelte';
   import QuickAccess from './QuickAccess.svelte';
   import AppearanceSettings from './AppearanceSettings.svelte';
+  import AiChatSettings from './AiChatSettings.svelte';
 
   let transitionParams = {
     x: 320,
@@ -93,6 +94,7 @@
       {/if}
       <Profiles {onClose} />
       <DictionarySettings />
+      <AiChatSettings />
       <AnkiConnectSettings />
       <CatalogSettings />
       <AppearanceSettings />

@@ -34,6 +34,8 @@
   import MangaPage from './MangaPage.svelte';
   import TextBoxContextMenu from './TextBoxContextMenu.svelte';
   import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
+  import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
+  import { openChatWithExplain } from '$lib/ai-chat/store';
   import {
     openCreateModal,
     openUpdateModal,
@@ -55,6 +57,7 @@
   } from 'flowbite-svelte-icons';
   import TextBoxPicker from './TextBoxPicker.svelte';
   import SettingsButton from './SettingsButton.svelte';
+  import AiChatButton from './AiChatButton.svelte';
   import { getCharCount } from '$lib/util/count-chars';
   import QuickActions from './QuickActions.svelte';
   import VerticalScrollReader from './VerticalScrollReader.svelte';
@@ -776,6 +779,10 @@
     toggleSelection(contextMenuData.boxId, contextMenuData.lines.join(''));
   }
 
+  function handleContextMenuExplain(text: string) {
+    openChatWithExplain(text);
+  }
+
   async function handleContextMenuAddToAnki(selection: string) {
     if (!contextMenuData || !volume) return;
 
@@ -1099,6 +1106,7 @@
     page2Number={!useSinglePage ? index + 2 : undefined}
     visible={overlaysVisible}
   />
+  <AiChatButton visible={overlaysVisible} />
   <SettingsButton visible={overlaysVisible} />
   <TextBoxPicker />
   <SelectionToolbar />
@@ -1302,11 +1310,13 @@
       onCopyRaw={() => {}}
       onAddToAnki={handleContextMenuAddToAnki}
       onSelect={handleContextMenuSelect}
+      onExplain={handleContextMenuExplain}
       onClose={() => (showContextMenu = false)}
     />
   {/if}
 
   <DictionaryPopup />
+  <AiChatPanel />
 {:else if $volumesLoaded && !volume}
   <!-- The volumes table has loaded and this UUID genuinely isn't in it. -->
   <div class="flex h-screen w-screen flex-col items-center justify-center gap-4">

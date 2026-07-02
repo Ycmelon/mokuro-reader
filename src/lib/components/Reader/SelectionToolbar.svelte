@@ -8,6 +8,7 @@
     clearSelection,
     exitSelectMode
   } from '$lib/reader/text-selection';
+  import { openChatWithExplain } from '$lib/ai-chat/store';
 
   async function copyAll() {
     const text = get(copyText);
@@ -16,6 +17,13 @@
     showSnackbar(`Copied ${get(selectionCount)} text boxes`);
     // Copying ends the session: clear the selection and leave select mode.
     exitSelectMode();
+  }
+
+  function explainAll() {
+    const text = get(copyText);
+    if (!text) return;
+    exitSelectMode();
+    openChatWithExplain(text);
   }
 </script>
 
@@ -30,6 +38,13 @@
       class="rounded-full bg-primary-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
     >
       Copy
+    </button>
+    <button
+      onclick={explainAll}
+      disabled={$selectionCount === 0}
+      class="rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+    >
+      Explain
     </button>
     <button
       onclick={clearSelection}

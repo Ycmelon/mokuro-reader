@@ -317,7 +317,7 @@
   function handleTextBoxHover(element: HTMLDivElement, params: [number, string, boolean]) {
     const [index, initialFontSize, vertical] = params;
 
-    const calculate = () => {
+    const calculate = async () => {
       // Skip if already processed, OCR is hidden, or using manual font size
       if (processedTextBoxes.has(index) || display !== 'block' || $settings.fontSize !== 'auto')
         return;
@@ -325,12 +325,29 @@
       // Mark as processed immediately to prevent duplicate calculations
       processedTextBoxes.add(index);
 
+      // The OCR font (`app.css` @font-face) uses `font-display: swap`, so text
+      // is laid out with a FALLBACK font until the self-hosted woff2 finishes
+      // downloading. If we measure a box during that window, the binary search
+      // fits text using fallback metrics and locks in a wrong (often too small)
+      // size — and which boxes are affected is random per session, depending on
+      // what you touch before the font loads. Wait for the real font to be
+      // ready for this box's glyphs before measuring so geometry is stable.
+      try {
+        const text = element.querySelector('p')?.textContent ?? '';
+        const family = $settings.textbookFont ? 'UD Digi Kyokasho' : 'Noto Sans JP';
+        if (text && document.fonts?.load) {
+          await document.fonts.load(`16px "${family}"`, text);
+        }
+      } catch {
+        // Fall through and measure with whatever font is currently available.
+      }
+
       // Use requestAnimationFrame to ensure the DOM is fully rendered
       requestAnimationFrame(() => {
         const result = calculateOptimalFontSize(element, initialFontSize);
         if (!result) return;
 
-        const { finalSize, useWrapping, originalInPx } = result;
+        const { finalSize, useWrapping } = result;
 
         // Apply final settings
         if (useWrapping) {
@@ -346,10 +363,13 @@
 
         element.style.fontSize = `${finalSize}px`;
 
-        // Store adjusted size if it changed
-        if (finalSize < originalInPx) {
-          adjustedFontSizes.set(index, `${finalSize}px`);
-        }
+        // Persist the computed size into the reactive map — even when the box
+        // scaled UP (finalSize >= originalInPx). The imperative write above sets
+        // it now, but `style:font-size={adjustedFontSizes.get(index) || fontSize}`
+        // is re-applied on every `{#each}` re-render (e.g. any selection change),
+        // which would otherwise clobber a scaled-up box back to the original,
+        // smaller `fontSize`. Storing it here keeps the reactive value in sync.
+        adjustedFontSizes.set(index, `${finalSize}px`);
 
         // Spread the columns to fill the width (font size already finalized).
         if (vertical && $settings.spreadVerticalText) fillVerticalColumns(element);
