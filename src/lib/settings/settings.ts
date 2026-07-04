@@ -34,19 +34,12 @@ export type ScrollMode = 'vertical' | 'horizontal' | 'auto' | 'continuous';
 
 export type PageTransition = 'none' | 'crossfade' | 'pageTurn' | 'swipe';
 
-// AnkiConnect field mapping - template is freeform text with variables
+// Per-note-field template mapping. `template` is freeform text with mined-card
+// variables ("{word}", "{reading}", "{meaning}", "{sentence}", "{extra}",
+// "{image}", "{series}", "{volume}", "{page}"). Shared by both Anki protocols.
 export type FieldMapping = {
-  fieldName: string; // Anki field name (e.g., "Front", "Picture")
-  template: string; // Freeform text with variables: "{selection}", "{sentence}", "{image}", "{series}", "{volume}"
-};
-
-// Configuration for a note type
-export type ModelConfig = {
-  modelName: string;
-  deckName: string; // Supports {series}, {volume} templates
-  fieldMappings: FieldMapping[];
-  tags?: string; // Tag template with variables: "{series}", "{volume}", "{existing}" (update mode only)
-  quickCapture?: boolean; // Send directly without showing modal (per-model setting)
+  fieldName: string; // Anki field name (e.g., "Word", "Picture")
+  template: string;
 };
 
 // Cached data from AnkiConnect (stored in settings, refreshed on connect)
@@ -60,41 +53,13 @@ export type AnkiConnectionData = {
   isAndroid?: boolean; // Auto-detected: true if createDeck fails
 };
 
+// AnkiConnect is now only a *transport* for the shared Anki-mining flow, so this
+// holds connection state only. Card destination + field config live in
+// AnkiServerSettings (settings/misc.ts), shared across both protocols.
 export type AnkiConnectSettings = {
-  // Connection
   url: string;
-  enabled: boolean; // User can explicitly disable even when connected
-  connectionData: AnkiConnectionData | null; // Cached from last successful connection
-  androidModeOverride?: 'auto' | 'android' | 'desktop'; // Override auto-detection
-
-  // Current selection
-  selectedModel: string; // Currently active model
-
-  // Model configurations per mode (keyed by model name)
-  // Separate configs for create vs update since templates differ (e.g., {existing} only in update)
-  createModelConfigs: Record<string, ModelConfig>;
-  updateModelConfigs: Record<string, ModelConfig>;
-
-  // Legacy field - migrated to create/updateModelConfigs on load
-  modelConfigs?: Record<string, ModelConfig>;
-
-  // Image settings
-  heightField: number;
-  widthField: number;
-  qualityField: number;
-  cropImage: boolean;
-
-  // Trigger settings
-  triggerMethod: 'rightClick' | 'doubleTap' | 'both' | 'neither';
-
-  // Card mode
-  cardMode: 'update' | 'create';
-
-  // Quick capture - send directly without showing modal
-  quickCapture: boolean;
-
-  // Tags (desktop only, not supported on Android)
-  tags: string;
+  enabled: boolean; // Set true on successful connect, false on disconnect
+  connectionData: AnkiConnectionData | null; // Cached decks/models/fields from last connect
 };
 
 export type TimeSchedule = {
@@ -194,71 +159,6 @@ export type TimeScheduleKey = keyof TimeSchedule;
 
 export type ScheduleSettingKey = 'nightModeSchedule' | 'invertColorsSchedule' | 'grayscaleSchedule';
 
-// Helper to migrate old AnkiConnect settings to new modelConfigs format
-function migrateOldAnkiModelConfig(oldSettings: Record<string, any>): Record<string, ModelConfig> {
-  // If no old model settings, return empty
-  if (!oldSettings.modelName) {
-    return {};
-  }
-
-  const modelName = oldSettings.modelName;
-  const deckName = oldSettings.deckName || 'Default';
-  const pictureField = oldSettings.pictureField || 'Picture';
-  const sentenceField = oldSettings.sentenceField || 'Sentence';
-  const grabSentence = oldSettings.grabSentence ?? true;
-
-  // Create field mappings based on old settings
-  const fieldMappings: FieldMapping[] = [
-    { fieldName: 'Front', template: '{selection}' },
-    { fieldName: pictureField, template: '{image}' }
-  ];
-
-  // Add sentence field if it was enabled
-  if (grabSentence && sentenceField !== 'Front' && sentenceField !== pictureField) {
-    fieldMappings.push({ fieldName: sentenceField, template: '{sentence}' });
-  }
-
-  return {
-    [modelName]: {
-      modelName,
-      deckName,
-      fieldMappings
-    }
-  };
-}
-
-// Default configurations for common Anki note types
-export const DEFAULT_MODEL_CONFIGS: Record<string, Omit<ModelConfig, 'modelName'>> = {
-  Basic: {
-    deckName: 'Default',
-    fieldMappings: [
-      { fieldName: 'Front', template: '{selection}' },
-      { fieldName: 'Back', template: '{image}' }
-    ]
-  },
-  'Basic (and reversed card)': {
-    deckName: 'Default',
-    fieldMappings: [
-      { fieldName: 'Front', template: '{selection}' },
-      { fieldName: 'Back', template: '{image}' }
-    ]
-  },
-  'Basic (optional reversed card)': {
-    deckName: 'Default',
-    fieldMappings: [
-      { fieldName: 'Front', template: '{selection}' },
-      { fieldName: 'Back', template: '{image}' }
-    ]
-  },
-  Cloze: {
-    deckName: 'Default',
-    fieldMappings: [
-      { fieldName: 'Text', template: '{selection}' },
-      { fieldName: 'Extra', template: '{image}' }
-    ]
-  }
-};
-
 const defaultSettings: Settings = {
   defaultFullscreen: false,
   displayOCR: true,
@@ -331,19 +231,7 @@ const defaultSettings: Settings = {
   ankiConnectSettings: {
     url: 'http://127.0.0.1:8765',
     enabled: false,
-    connectionData: null,
-    androidModeOverride: 'auto',
-    selectedModel: '',
-    createModelConfigs: {},
-    updateModelConfigs: {},
-    heightField: 0,
-    widthField: 0,
-    qualityField: 1,
-    cropImage: false,
-    triggerMethod: 'both',
-    cardMode: 'create',
-    quickCapture: false,
-    tags: ''
+    connectionData: null
   },
   catalogSettings: {
     stackingPreset: 'default',
@@ -430,35 +318,14 @@ export function migrateProfiles(profiles: Profiles): Profiles {
       migratedProfile.volumeDefaults.singlePageView = 'auto';
     }
 
-    // Migrate AnkiConnect settings - handle conversion from old format
-    // Cast to any for legacy property access during migration
+    // AnkiConnect settings now hold connection state only (card destination +
+    // field config moved to AnkiServerSettings). Preserve connection bits; the
+    // legacy capture/model-config fields are intentionally dropped.
     const oldAnki: any = profile.ankiConnectSettings || {};
-
-    // Migrate legacy modelConfigs to create/update split if needed
-    const legacyConfigs = oldAnki.modelConfigs || migrateOldAnkiModelConfig(oldAnki);
-    const createConfigs = oldAnki.createModelConfigs || legacyConfigs || {};
-    const updateConfigs = oldAnki.updateModelConfigs || {};
-
     migratedProfile.ankiConnectSettings = {
-      ...defaultSettings.ankiConnectSettings,
-      // Preserve connection settings
       url: oldAnki.url || defaultSettings.ankiConnectSettings.url,
       enabled: oldAnki.enabled ?? defaultSettings.ankiConnectSettings.enabled,
-      connectionData: oldAnki.connectionData || null, // Requires reconnect after migration
-      androidModeOverride: oldAnki.androidModeOverride || 'auto',
-      // Migrate model settings - preserve both create and update configs
-      selectedModel: oldAnki.selectedModel || oldAnki.modelName || '',
-      createModelConfigs: createConfigs,
-      updateModelConfigs: updateConfigs,
-      // Preserve other settings
-      heightField: oldAnki.heightField ?? defaultSettings.ankiConnectSettings.heightField,
-      widthField: oldAnki.widthField ?? defaultSettings.ankiConnectSettings.widthField,
-      qualityField: oldAnki.qualityField ?? defaultSettings.ankiConnectSettings.qualityField,
-      cropImage: oldAnki.cropImage ?? defaultSettings.ankiConnectSettings.cropImage,
-      triggerMethod: oldAnki.triggerMethod || defaultSettings.ankiConnectSettings.triggerMethod,
-      cardMode: oldAnki.cardMode || defaultSettings.ankiConnectSettings.cardMode,
-      quickCapture: oldAnki.quickCapture ?? defaultSettings.ankiConnectSettings.quickCapture,
-      tags: oldAnki.tags ?? defaultSettings.ankiConnectSettings.tags
+      connectionData: oldAnki.connectionData || null // Requires reconnect after migration
     };
 
     migratedProfile.nightModeSchedule = {

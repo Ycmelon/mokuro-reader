@@ -5,8 +5,7 @@
   import { resetSettings } from '$lib/settings';
   import { isReader, promptConfirmation } from '$lib/util';
   import { currentView } from '$lib/util/hash-router';
-  import AnkiConnectSettings from './AnkiConnectSettings.svelte';
-  import AnkiServerSettings from './AnkiServerSettings.svelte';
+  import AnkiSettings from './AnkiSettings.svelte';
   import ReaderSettings from './Reader/ReaderSettings.svelte';
   import Profiles from './Profiles/Profiles.svelte';
   import CatalogSettings from './CatalogSettings.svelte';
@@ -96,8 +95,7 @@
       <Profiles {onClose} />
       <DictionarySettings />
       <AiChatSettings />
-      <AnkiConnectSettings />
-      <AnkiServerSettings />
+      <AnkiSettings />
       <CatalogSettings />
       <AppearanceSettings />
       <Stats />

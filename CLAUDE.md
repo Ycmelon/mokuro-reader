@@ -222,7 +222,7 @@ through the shared modules in `src/lib/reader/input/` — see
 **`docs/INPUT-CONTRACTS.md`** for the architecture and the contracts that
 must not break. Highlights:
 
-- `.textBox` is an input-routing protocol: double-tap there is the AnkiConnect capture gesture, mouse/pen drags are text selection (Yomitan/Migaku) — never pans, never zoom
+- `.textBox` is an input-routing protocol: double-tap there is swallowed (never zoom), mouse/pen drags are text selection (Yomitan/Migaku) — never pans. (Card mining runs through the dictionary popup's mine button, not a text-box gesture.)
 - Each surface owns its gestures via `PointerGestureTracker` config; Reader owns only keyboard + intent callbacks
 - Before starting any motion, handlers call their surface's `MotionGate` intent method instead of ad-hoc `finishNow()`/`stop()` combinations
 

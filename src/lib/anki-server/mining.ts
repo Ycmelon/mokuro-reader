@@ -12,7 +12,6 @@
 import { get, writable } from 'svelte/store';
 import type { Page } from '$lib/types';
 import { clamp, showSnackbar } from '$lib/util';
-import { settings } from '$lib/settings';
 import { getCroppedImg } from '$lib/anki-connect';
 import { extractPageImageUrl } from '$lib/reader/page-image';
 
@@ -137,7 +136,7 @@ export async function finishCrop(screenRect: DOMRect): Promise<void> {
     return;
   }
 
-  const image = await getCroppedImg(url, { x, y, width, height }, get(settings));
+  const image = await getCroppedImg(url, { x, y, width, height });
   if (!image) {
     // getCroppedImg already surfaces its own failure snackbar.
     return;

@@ -40,25 +40,11 @@
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
   import { openChatWithExplain } from '$lib/ai-chat/store';
   import {
-    openCreateModal,
-    openUpdateModal,
-    sendQuickCapture,
-    getLastCardInfo,
-    getCardAgeInMin,
-    extractFieldValues,
-    getModelConfig,
-    blobToBase64,
-    type VolumeMetadata
-  } from '$lib/anki-connect';
-  import { db } from '$lib/catalog/db';
-  import { showSnackbar } from '$lib/util';
-  import {
     BackwardStepSolid,
     CaretLeftSolid,
     CaretRightSolid,
     ForwardStepSolid
   } from 'flowbite-svelte-icons';
-  import TextBoxPicker from './TextBoxPicker.svelte';
   import SettingsButton from './SettingsButton.svelte';
   import AiChatButton from './AiChatButton.svelte';
   import { getCharCount } from '$lib/util/count-chars';
@@ -793,137 +779,6 @@
     openChatWithExplain(text);
   }
 
-  async function handleContextMenuAddToAnki(selection: string) {
-    if (!contextMenuData || !volume) return;
-
-    const volumeMetadata: VolumeMetadata = {
-      seriesTitle: volume.series_title,
-      volumeTitle: volume.volume_title
-    };
-
-    // Load cover image for {cover} template support
-    try {
-      const dbVolume = await db.volumes.get(volume.volume_uuid);
-      if (dbVolume?.thumbnail) {
-        const coverImage = await blobToBase64(dbVolume.thumbnail);
-        if (coverImage) {
-          volumeMetadata.coverImage = coverImage;
-        }
-      }
-    } catch {
-      // Continue without cover image
-    }
-
-    // Use pre-captured image URL (captured at right-click time for reliability)
-    const url = contextMenuData.imageUrl;
-
-    if (!url) {
-      showSnackbar('Error: Could not get page image');
-      return;
-    }
-
-    const fullSentence = contextMenuData.lines.join(' ');
-    const cardFront = selection || fullSentence;
-    const ankiTags = $settings.ankiConnectSettings.tags || '';
-    const textBox = contextMenuData.textBox;
-    // Use captured page index for reliability (in case page changed between right-click and menu click)
-    const pageIndex =
-      contextMenuData.pageIndex ?? ($volumes[volume.volume_uuid]?.progress || 1) - 1;
-    const pageNumber = pageIndex + 1;
-    const currentPage = pages[pageIndex];
-    const pageFilename = currentPage?.img_path;
-    const cardMode = $settings.ankiConnectSettings.cardMode;
-
-    if (cardMode === 'update') {
-      // Update mode: fetch previous card values
-      const lastCard = await getLastCardInfo();
-
-      if (!lastCard || !lastCard.noteId) {
-        showSnackbar('No recent card found to update');
-        return;
-      }
-
-      const cardAge = getCardAgeInMin(lastCard.noteId);
-      if (cardAge >= 5) {
-        showSnackbar(`Last card is ${cardAge} minutes old (max 5 min)`);
-        return;
-      }
-
-      const previousValues = extractFieldValues(lastCard);
-
-      // Get the model config to check for quickCapture setting
-      const modelConfig = getModelConfig(lastCard.modelName, 'update');
-      const quickCapture = modelConfig?.quickCapture ?? false;
-
-      if (quickCapture) {
-        await sendQuickCapture(
-          'update',
-          url,
-          cardFront,
-          fullSentence,
-          volumeMetadata,
-          textBox,
-          previousValues,
-          lastCard.noteId,
-          lastCard.tags,
-          lastCard.modelName,
-          pageFilename
-        );
-      } else {
-        // Show modal (also shown if quickCapture but no config exists)
-        openUpdateModal(
-          url,
-          previousValues,
-          lastCard.noteId,
-          lastCard.modelName,
-          lastCard.tags, // existing tags from the card
-          cardFront,
-          fullSentence,
-          ankiTags,
-          volumeMetadata,
-          undefined,
-          textBox,
-          pageNumber,
-          pageFilename
-        );
-      }
-    } else {
-      // Create mode
-      const { selectedModel } = $settings.ankiConnectSettings;
-      const modelConfig = getModelConfig(selectedModel, 'create');
-      const quickCapture = modelConfig?.quickCapture ?? false;
-
-      if (quickCapture) {
-        await sendQuickCapture(
-          'create',
-          url,
-          cardFront,
-          fullSentence,
-          volumeMetadata,
-          textBox,
-          undefined, // previousValues (not used for create)
-          undefined, // previousCardId (not used for create)
-          undefined, // previousTags (not used for create)
-          undefined, // modelName (not needed for create)
-          pageFilename
-        );
-      } else {
-        // Show modal (also shown if quickCapture but no config exists)
-        openCreateModal(
-          url,
-          cardFront,
-          fullSentence,
-          ankiTags,
-          volumeMetadata,
-          undefined,
-          textBox,
-          pageNumber,
-          pageFilename
-        );
-      }
-    }
-  }
-
   function showNotification(message: string, key: string) {
     notificationMessage = message;
     notificationKey = key;
@@ -1104,21 +959,9 @@
   <title>{volume?.volume_title || 'Volume'}</title>
 </svelte:head>
 {#if volume && pages && pages.length > 0 && volumeData && $progress?.[volume.volume_uuid] !== undefined}
-  <QuickActions
-    {left}
-    {right}
-    src1={imageCache.getFile(index)}
-    src2={!useSinglePage ? imageCache.getFile(index + 1) : undefined}
-    volumeUuid={volume.volume_uuid}
-    page1={pages[index]}
-    page2={!useSinglePage ? pages[index + 1] : undefined}
-    page1Number={index + 1}
-    page2Number={!useSinglePage ? index + 2 : undefined}
-    visible={chromeVisible}
-  />
+  <QuickActions {left} {right} visible={chromeVisible} />
   <AiChatButton visible={chromeVisible} />
   <SettingsButton visible={chromeVisible} />
-  <TextBoxPicker />
   <SelectionToolbar />
   {#if chromeVisible}
     <Popover
@@ -1316,11 +1159,9 @@
       x={contextMenuData.x}
       y={contextMenuData.y}
       lines={contextMenuData.lines}
-      ankiEnabled={$settings.ankiConnectSettings.enabled}
       textBoxElement={contextMenuData.imgElement}
       onCopy={() => {}}
       onCopyRaw={() => {}}
-      onAddToAnki={handleContextMenuAddToAnki}
       onSelect={handleContextMenuSelect}
       onExplain={handleContextMenuExplain}
       onClose={() => (showContextMenu = false)}

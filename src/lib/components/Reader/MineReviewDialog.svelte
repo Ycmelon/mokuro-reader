@@ -12,8 +12,9 @@
     type MiningDraft
   } from '$lib/anki-server/mining';
   import { buildGenerationPrompt, generateFromMessages, type CardBase } from '$lib/ai-chat/card';
-  import { buildCardRequest, validateCardConfig } from '$lib/anki-server/cards';
-  import { createCard, UnauthorizedError } from '$lib/anki-server/client';
+  import { validateCardConfig } from '$lib/anki-server/cards';
+  import { sendMinedCard } from '$lib/anki-server/send';
+  import { UnauthorizedError } from '$lib/anki-server/client';
   import type { ChatMessage } from '$lib/ai-chat/openrouter';
 
   // Local, editable copies of the draft. Reseeded only when a *new* draft arrives
@@ -153,7 +154,7 @@
     sending = true;
     genError = '';
     try {
-      const request = buildCardRequest(
+      await sendMinedCard(
         { word: focus, reading, meaning, sentence, extra, image: image ?? '' },
         cfg,
         {
@@ -163,14 +164,13 @@
           pageIndex: ctx.pageIndex
         }
       );
-      await createCard(cfg.serverUrl, cfg.token, request);
       showSnackbar(`Card added to ${cfg.deck}`);
       cancelMining();
     } catch (e) {
       // Keep the dialog open so the user can fix and retry without re-mining.
       genError =
         e instanceof UnauthorizedError
-          ? 'Session expired — log in again in Settings → Anki Server.'
+          ? 'Session expired — log in again in Settings → Anki.'
           : e instanceof Error
             ? e.message
             : String(e);

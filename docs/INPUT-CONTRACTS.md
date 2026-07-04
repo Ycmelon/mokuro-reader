@@ -51,10 +51,12 @@ modules.
 
 OCR text boxes own their gestures (see `gesture-target.ts`):
 
-- **Double-tap on a text box is the AnkiConnect card-capture gesture.**
-  TextBoxes.svelte handles it and `stopPropagation()`s; surfaces must also
-  filter taps by role so pointer-based detection never zooms from a text
-  box. Breaking this breaks users' Anki mining flow.
+- **Double-tap on a text box is swallowed, never a zoom.** TextBoxes.svelte
+  handles it and `stopPropagation()`s; surfaces must also filter taps by role
+  so pointer-based detection never zooms from a text box. (This used to be the
+  legacy AnkiConnect capture gesture; card mining now runs through the
+  dictionary popup's mine button, but text boxes still must not zoom on
+  double-tap.)
 - Mouse/pen drags on a text box are **text selection** (Yomitan/Migaku
   scanning) — never a pan. Single-finger **touch** is the exception: it
   pans everywhere, because touch has no drag-selection gesture.
@@ -119,5 +121,5 @@ Zoom settles carry a `SettleReason` (`zoom-controller.ts`): only
 Unit tests cover the shared machinery (`src/lib/reader/input/*.test.ts`,
 `src/lib/reader/page-nav.test.ts`); Playwright e2e covers zoom geometry
 (`e2e/zoom.spec.ts`). When changing gesture behavior, test manually with a
-Japanese-learning extension (Yomitan/Migaku) enabled and verify the Anki
-double-tap flow still captures.
+Japanese-learning extension (Yomitan/Migaku) enabled and verify a text-box
+double-tap is swallowed (no zoom, no overlay flash).

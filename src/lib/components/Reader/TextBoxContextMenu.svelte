@@ -5,29 +5,16 @@
     x: number;
     y: number;
     lines: string[];
-    ankiEnabled: boolean;
     textBoxElement?: HTMLElement | null;
     onCopy: () => void;
     onCopyRaw: () => void;
-    onAddToAnki: (selection: string) => void;
     onSelect: () => void;
     onExplain: (text: string) => void;
     onClose: () => void;
   }
 
-  let {
-    x,
-    y,
-    lines,
-    ankiEnabled,
-    textBoxElement,
-    onCopy,
-    onCopyRaw,
-    onAddToAnki,
-    onSelect,
-    onExplain,
-    onClose
-  }: Props = $props();
+  let { x, y, lines, textBoxElement, onCopy, onCopyRaw, onSelect, onExplain, onClose }: Props =
+    $props();
 
   // Snapshot selection at menu open time — don't reactively track changes.
   // Reactive tracking causes a race with Yomitan: clicking our menu dismisses
@@ -184,13 +171,6 @@
     closeAfterAction();
   }
 
-  function handleAddToAnki(e: Event) {
-    e.preventDefault();
-    e.stopPropagation();
-    onAddToAnki(selection);
-    closeAfterAction();
-  }
-
   function handleSelect(e: Event) {
     e.preventDefault();
     e.stopPropagation();
@@ -272,17 +252,6 @@
     </svg>
     <span>Select</span>
   </button>
-  {#if ankiEnabled}
-    <div class="divider"></div>
-    <button type="button" class="menu-item" onpointerup={handleAddToAnki}>
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-        <path d="M2 17l10 5 10-5"></path>
-        <path d="M2 12l10 5 10-5"></path>
-      </svg>
-      <span>Add to Anki</span>
-    </button>
-  {/if}
   <div class="divider"></div>
   <button type="button" class="menu-item" onpointerup={handleExplain}>
     <MessagesOutline size="sm" />

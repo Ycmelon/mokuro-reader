@@ -1,23 +1,9 @@
 <script lang="ts">
-  import { clamp, promptConfirmation } from '$lib/util';
+  import { clamp } from '$lib/util';
   import { selection, selectMode, toggleSelection } from '$lib/reader/text-selection';
   import type { Page } from '$lib/types';
   import { settings, volumes, imageFilter } from '$lib/settings';
-  import { extractPageImageUrl } from '$lib/reader/page-image';
-  import {
-    showCropper,
-    openCreateModal,
-    openUpdateModal,
-    expandTextBoxBounds,
-    sendQuickCapture,
-    getLastCardInfo,
-    getCardAgeInMin,
-    extractFieldValues,
-    getModelConfig,
-    blobToBase64,
-    type VolumeMetadata
-  } from '$lib/anki-connect';
-  import { db } from '$lib/catalog/db';
+  import { expandTextBoxBounds } from '$lib/anki-connect';
 
   interface ContextMenuData {
     x: number;
@@ -150,34 +136,6 @@
   let alwaysShowOCR = $derived($settings.alwaysShowOCR);
   let border = $derived($settings.textBoxBorders ? '1px solid red' : 'none');
   let contenteditable = $derived($settings.textEditable);
-
-  // Double-tap trigger: enabled if triggerMethod is 'doubleTap' or 'both' (legacy)
-  let doubleTapEnabled = $derived(
-    $settings.ankiConnectSettings.triggerMethod === 'doubleTap' ||
-      $settings.ankiConnectSettings.triggerMethod === 'both'
-  );
-  let ankiTags = $derived($settings.ankiConnectSettings.tags);
-  let cardMode = $derived($settings.ankiConnectSettings.cardMode);
-  let volumeMetadata = $derived<VolumeMetadata>({
-    seriesTitle: $volumes[volumeUuid]?.series_title,
-    volumeTitle: $volumes[volumeUuid]?.volume_title
-  });
-
-  // Load volume cover image from DB and add to metadata
-  async function getMetadataWithCover(): Promise<VolumeMetadata> {
-    try {
-      const dbVolume = await db.volumes.get(volumeUuid);
-      if (dbVolume?.thumbnail) {
-        const coverImage = await blobToBase64(dbVolume.thumbnail);
-        if (coverImage) {
-          return { ...volumeMetadata, coverImage };
-        }
-      }
-    } catch {
-      // Fall through to return metadata without cover
-    }
-    return volumeMetadata;
-  }
 
   // Track adjusted font sizes for each textbox
   let adjustedFontSizes = $state<Map<number, string>>(new Map());
@@ -392,159 +350,6 @@
     };
   }
 
-  function getSelectedText(): string {
-    // Get actual selected text from the DOM
-    const selection = window.getSelection();
-    return selection?.toString().trim() || '';
-  }
-
-  async function onUpdateCard(event: Event, lines: string[], blockIndex: number) {
-    if (!$settings.ankiConnectSettings.enabled) return;
-
-    const selectedText = getSelectedText();
-    const fullSentence = lines.join(' ');
-
-    // Get the original block's bounding box for initial crop
-    const block = page.blocks[blockIndex];
-    const textBox = block ? expandTextBoxBounds(block, page) : undefined;
-
-    // Get image URL
-    const url =
-      extractPageImageUrl(event.target as HTMLElement) || (src ? URL.createObjectURL(src) : null);
-
-    if (!url) return;
-
-    // Get current page number for {page} template
-    // Use the explicit pageIndex prop (0-based) when available, otherwise fall back to progress
-    const pageNumber = pageIndex != null ? pageIndex + 1 : $volumes[volumeUuid]?.progress || 1;
-
-    // Load cover image for {cover} template support
-    const metadataWithCover = await getMetadataWithCover();
-
-    if (cardMode === 'update') {
-      // Update mode: fetch previous card values with retry
-      const maxRetries = 3;
-      let lastCard = null;
-      let lastError = '';
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        lastCard = await getLastCardInfo();
-
-        if (!lastCard || !lastCard.noteId) {
-          lastError = 'No recent card found to update';
-          // Wait before retry (except on last attempt)
-          if (attempt < maxRetries - 1) {
-            await new Promise((r) => setTimeout(r, 500));
-          }
-          continue;
-        }
-
-        if (!lastCard.modelName) {
-          lastError = 'Could not detect card note type';
-          // Wait before retry
-          if (attempt < maxRetries - 1) {
-            await new Promise((r) => setTimeout(r, 500));
-          }
-          continue;
-        }
-
-        // Success - break out of retry loop
-        lastError = '';
-        break;
-      }
-
-      if (lastError || !lastCard?.noteId || !lastCard?.modelName) {
-        const { showSnackbar } = await import('$lib/util');
-        showSnackbar(`Error: ${lastError || 'Failed to fetch card info'}`);
-        return;
-      }
-
-      const cardAge = getCardAgeInMin(lastCard.noteId);
-      if (cardAge >= 5) {
-        // Card too old
-        const { showSnackbar } = await import('$lib/util');
-        showSnackbar(`Last card is ${cardAge} minutes old (max 5 min)`);
-        return;
-      }
-
-      const previousValues = extractFieldValues(lastCard);
-
-      // Get the model config to check for quickCapture setting
-      const modelConfig = getModelConfig(lastCard.modelName, 'update');
-      const hasConfig = !!modelConfig;
-      const quickCapture = modelConfig?.quickCapture ?? false;
-
-      if (quickCapture) {
-        // Quick capture: send directly without modal
-        await sendQuickCapture(
-          'update',
-          url,
-          selectedText || fullSentence,
-          fullSentence,
-          metadataWithCover,
-          textBox,
-          previousValues,
-          lastCard.noteId,
-          lastCard.tags,
-          lastCard.modelName,
-          page.img_path
-        );
-      } else {
-        // Show modal in update mode - use the card's model name
-        // (also shown if quickCapture but no config exists)
-        openUpdateModal(
-          url,
-          previousValues,
-          lastCard.noteId,
-          lastCard.modelName,
-          lastCard.tags, // existing tags from the card
-          selectedText || fullSentence,
-          fullSentence,
-          ankiTags,
-          metadataWithCover,
-          undefined,
-          textBox,
-          pageNumber,
-          page.img_path
-        );
-      }
-    } else {
-      // Create mode
-      const { selectedModel } = $settings.ankiConnectSettings;
-      const modelConfig = getModelConfig(selectedModel, 'create');
-      const quickCapture = modelConfig?.quickCapture ?? false;
-
-      if (quickCapture) {
-        await sendQuickCapture(
-          'create',
-          url,
-          selectedText || fullSentence,
-          fullSentence,
-          metadataWithCover,
-          textBox,
-          undefined, // previousValues
-          undefined, // previousCardId
-          undefined, // previousTags
-          undefined, // modelName
-          page.img_path
-        );
-      } else {
-        // Show modal (also shown if quickCapture but no config exists)
-        openCreateModal(
-          url,
-          selectedText || fullSentence,
-          fullSentence,
-          ankiTags,
-          metadataWithCover,
-          undefined,
-          textBox,
-          pageNumber,
-          page.img_path
-        );
-      }
-    }
-  }
-
   function handleContextMenu(
     event: MouseEvent,
     lines: string[],
@@ -571,13 +376,10 @@
     });
   }
 
-  function onDoubleTap(event: Event, lines: string[], blockIndex: number) {
-    // Always stop propagation to prevent zoom from triggering
+  function onDoubleTap(event: Event) {
+    // Text boxes are for reading/selection, never zoom targets: swallow the
+    // double-tap so it doesn't bubble up to the surface's zoom gesture.
     event.stopPropagation();
-    if (doubleTapEnabled) {
-      event.preventDefault();
-      onUpdateCard(event, lines, blockIndex);
-    }
   }
 
   import {
@@ -617,7 +419,7 @@
   }
 
   async function handleTextBoxClick(event: MouseEvent, boxId: string, lines: string[]) {
-    // Double-click is handled by ondblclick (Anki capture)
+    // Double-click is handled separately by ondblclick (swallowed, no lookup)
     if (event.detail > 1) return;
     // User drag-selected text — don't override their selection
     const sel = window.getSelection();
@@ -788,7 +590,7 @@
     role="none"
     onclick={(e) => handleTextBoxClick(e, boxId, lines)}
     oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex, boxId)}
-    ondblclick={(e) => onDoubleTap(e, lines, blockIndex)}
+    ondblclick={onDoubleTap}
     oncopy={onCopy}
     {contenteditable}
   >

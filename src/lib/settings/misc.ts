@@ -1,6 +1,7 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
 import { isMobilePlatform } from '$lib/util/platform';
+import type { FieldMapping } from '$lib/settings/settings';
 
 export type AiChatSettings = {
   openrouterApiKey: string;
@@ -9,18 +10,16 @@ export type AiChatSettings = {
   chatFontSize: number;
 };
 
-// Maps our logical card fields onto the chosen note type's field names. '' means
-// the logical field isn't written to any note field. (Image is handled
-// separately via `imageField`, since the server appends it as an <img>.)
-export type AnkiCardFieldMap = {
-  word: string;
-  reading: string;
-  meaning: string;
-  sentence: string;
-  extra: string;
-};
+// Which transport delivers mined cards. 'server' = the self-hosted Python server
+// (POST /cards → AnkiWeb); 'ankiconnect' = a local AnkiConnect instance (addNote).
+export type AnkiProtocol = 'server' | 'ankiconnect';
 
+// Shared Anki config for the mining flow. Despite the name, this now covers BOTH
+// protocols (the AnkiConnect side keeps only connection state in
+// `settings.ankiConnectSettings`). Card destination + per-note-type field
+// templates live here so the "Configure fields" UI is protocol-agnostic.
 export type AnkiServerSettings = {
+  protocol: AnkiProtocol; // which transport mined cards are sent through
   serverUrl: string; // base URL of the Python anki server, e.g. https://anki.example.com
   token: string; // bearer token from /login ('' = logged out)
   username: string; // AnkiWeb username, for display only ('' = logged out)
@@ -29,12 +28,18 @@ export type AnkiServerSettings = {
   cropMode: 'draw' | 'frame';
   // Language for AI-generated card meaning/extra (reading is always kana).
   cardLanguage: 'english' | 'japanese';
-  // Card destination (all populated from GET /status once logged in).
+  // Card destination.
   deck: string; // deck mined cards are filed into ('' = unset)
   noteType: string; // note type (model) name ('' = unset)
-  fieldMap: AnkiCardFieldMap; // logical field → note field name
-  imageField: string; // note field the cropped <img> is appended into ('' = none)
-  markerTag: string; // tag added to every mined card, alongside series/volume
+  // Per-note-type field templates, keyed by note type name. Each field's template
+  // is resolved from the mined card ({word},{reading},{meaning},{sentence},{extra},
+  // {image},{series},{volume},{page}). {image} routes the cropped image into that
+  // field. Replaces the old logical fieldMap + imageField.
+  fieldTemplates: Record<string, FieldMapping[]>;
+  // Tags added to every mined card, resolved from the mined vars ({series},
+  // {volume}, {page}) plus any literal tags. Fully user-editable — e.g. the
+  // default 'mokuro {series} {volume}' can be customised or cleared.
+  tagsTemplate: string;
 };
 
 export type MiscSettings = {
@@ -79,6 +84,7 @@ const defaultSettings: MiscSettings = {
     chatFontSize: 20
   },
   ankiServerSettings: {
+    protocol: 'server',
     serverUrl: '',
     token: '',
     username: '',
@@ -88,9 +94,8 @@ const defaultSettings: MiscSettings = {
     cardLanguage: 'english',
     deck: '',
     noteType: '',
-    fieldMap: { word: '', reading: '', meaning: '', sentence: '', extra: '' },
-    imageField: '',
-    markerTag: 'mokuro'
+    fieldTemplates: {},
+    tagsTemplate: 'mokuro {series} {volume}'
   }
 };
 
@@ -110,12 +115,9 @@ export const miscSettings = writable<MiscSettings>(
         ankiServerSettings: {
           ...defaultSettings.ankiServerSettings,
           ...parsedStored.ankiServerSettings,
-          // fieldMap is one level deeper again — merge so a newly added logical
-          // field defaults to '' instead of undefined for existing users.
-          fieldMap: {
-            ...defaultSettings.ankiServerSettings.fieldMap,
-            ...parsedStored.ankiServerSettings?.fieldMap
-          }
+          // fieldTemplates is a per-note-type map; a shallow spread from the
+          // stored value is correct (each note type's list is replaced wholesale).
+          fieldTemplates: parsedStored.ankiServerSettings?.fieldTemplates ?? {}
         }
       }
     : defaultSettings

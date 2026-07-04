@@ -1,19 +1,22 @@
 /**
  * Maps our logical mined card (word / reading / meaning / sentence / extra /
- * image) onto the user-configured note type, producing the `POST /cards` body.
+ * image) onto the user-configured note type via per-field *templates*, producing
+ * a neutral `CardRequest` that either transport (the self-hosted server or a local
+ * AnkiConnect) can send.
  *
  * Pure logic — no store or network dependency — so it's unit-testable and shared
- * by the review dialog. The destination (deck, note type, per-field mapping,
- * marker tag) comes from `AnkiServerSettings`; the series/volume come from the
- * mining context.
+ * by the review dialog and the protocol dispatcher (`send.ts`). The destination
+ * (deck, note type, per-field templates, tags) comes from `AnkiServerSettings`;
+ * the series/volume/page come from the mining context.
  */
 
 import type { AnkiServerSettings } from '$lib/settings/misc';
+import type { FieldMapping } from '$lib/settings/settings';
 import type { CardRequest } from './client';
 
 /** The logical card fields, ready to be routed onto note-type fields. */
 export interface LogicalCard {
-  word: string;
+  word: string; // the focus expression
   reading: string;
   meaning: string;
   sentence: string;
@@ -29,6 +32,10 @@ export interface CardMeta {
   pageIndex: number; // 0-based
 }
 
+/** The logical variables a field/tag template can reference. `image` is handled
+ *  specially (routed to the image field), not substituted as text. */
+const LOGICAL_KEYS = ['word', 'reading', 'meaning', 'sentence', 'extra', 'image'] as const;
+
 /** Anki tags are space-delimited, so collapse whitespace to underscores and drop
  *  anything that would break the tag. Empty in → empty out (filtered by caller). */
 function sanitizeTag(raw: string): string {
@@ -36,55 +43,96 @@ function sanitizeTag(raw: string): string {
 }
 
 /**
+ * Sensible defaults for a note type's fields: fill a field's template only when
+ * its name is an exact (case-insensitive) match for a logical variable — e.g. a
+ * field literally named "Word" → `{word}`, "Image" → `{image}`. Everything else
+ * is left blank for the user to configure.
+ */
+export function defaultFieldTemplates(fields: string[]): FieldMapping[] {
+  return fields.map((fieldName) => {
+    const key = LOGICAL_KEYS.find((k) => k === fieldName.trim().toLowerCase());
+    return { fieldName, template: key ? `{${key}}` : '' };
+  });
+}
+
+/**
+ * Resolve a field template against the mined card. Text variables are
+ * substituted; `{image}` is stripped (the image is attached separately). Newlines
+ * become `<br>` for Anki. Returns the resolved text (may be '').
+ */
+export function resolveMinedTemplate(template: string, card: LogicalCard, meta: CardMeta): string {
+  const resolved = template
+    .replace(/\{word\}/g, card.word ?? '')
+    .replace(/\{reading\}/g, card.reading ?? '')
+    .replace(/\{meaning\}/g, card.meaning ?? '')
+    .replace(/\{sentence\}/g, card.sentence ?? '')
+    .replace(/\{extra\}/g, card.extra ?? '')
+    .replace(/\{series\}/g, meta.seriesTitle ?? '')
+    .replace(/\{volume\}/g, meta.volumeTitle ?? '')
+    .replace(/\{page\}/g, String(meta.pageIndex + 1))
+    .replace(/\{image\}/g, ''); // image is attached separately, not text
+  return resolved
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+    .replace(/\n/g, '<br>');
+}
+
+/** Resolve the tag template (series/volume sanitized as single tags) into a
+ *  deduped, non-empty tag list. Any literal tags (e.g. "mokuro") pass through. */
+function buildTags(cfg: AnkiServerSettings, meta: CardMeta): string[] {
+  const resolved = (cfg.tagsTemplate ?? '')
+    .replace(/\{series\}/g, sanitizeTag(meta.seriesTitle))
+    .replace(/\{volume\}/g, sanitizeTag(meta.volumeTitle))
+    .replace(/\{page\}/g, String(meta.pageIndex + 1));
+  const tags = resolved
+    .split(/\s+/)
+    .map(sanitizeTag)
+    .filter((t) => t !== '');
+  return [...new Set(tags)];
+}
+
+/**
  * Validate that the destination is configured enough to build a card. Returns a
  * human-readable reason to show the user, or null when good to send.
  */
 export function validateCardConfig(cfg: AnkiServerSettings): string | null {
-  if (!cfg.deck) return 'Choose a deck in Settings → Anki Server.';
-  if (!cfg.noteType) return 'Choose a note type in Settings → Anki Server.';
-  const anyMapped = Object.values(cfg.fieldMap).some((f) => f !== '') || cfg.imageField !== '';
-  if (!anyMapped) {
-    return 'Map at least one field to your note type in Settings → Anki Server.';
+  if (!cfg.deck) return 'Choose a deck in Settings → Anki.';
+  if (!cfg.noteType) return 'Choose a note type in Settings → Anki.';
+  const templates = cfg.fieldTemplates[cfg.noteType] ?? [];
+  if (!templates.some((m) => m.template.trim() !== '')) {
+    return 'Configure at least one field in Settings → Anki.';
   }
   return null;
 }
 
 /**
- * Build the `POST /cards` request body from a logical card + destination config.
+ * Build the neutral `CardRequest` from a logical card + destination config.
  *
- * - Text fields: each logical field with a mapped note field *and* a non-empty
- *   value is written; blanks are skipped so an empty `extra` doesn't overwrite.
- * - Image: appended as an `<img>` into `cfg.imageField` (the server does the tag
- *   wrapping), with a collision-safe filename (the server also dedupes).
- * - Tags: marker tag + sanitized series + volume, empties dropped.
+ * - Text fields: each note field's template is resolved from the mined card;
+ *   blanks are skipped so an empty field doesn't overwrite.
+ * - Image: fields whose template contains `{image}` receive the cropped image
+ *   (collision-safe filename; the server also dedupes). The AnkiConnect adapter
+ *   turns `images` into `addNote`'s `picture` param.
+ * - Tags: resolved tag template, empties/dupes dropped.
  */
 export function buildCardRequest(
   card: LogicalCard,
   cfg: AnkiServerSettings,
   meta: CardMeta
 ): CardRequest {
+  const templates = cfg.fieldTemplates[cfg.noteType] ?? [];
   const fields: Record<string, string> = {};
-  const textPairs: [keyof typeof cfg.fieldMap, string][] = [
-    ['word', card.word],
-    ['reading', card.reading],
-    ['meaning', card.meaning],
-    ['sentence', card.sentence],
-    ['extra', card.extra]
-  ];
-  for (const [key, value] of textPairs) {
-    const target = cfg.fieldMap[key];
-    if (target && value) fields[target] = value;
-  }
-
   const images: CardRequest['images'] = [];
-  if (cfg.imageField && card.image) {
-    const filename = `mokuro_${meta.volumeUuid.slice(0, 8)}_p${meta.pageIndex + 1}_${Date.now()}.jpg`;
-    images.push({ field: cfg.imageField, filename, data: card.image });
+
+  for (const { fieldName, template } of templates) {
+    if (!template) continue;
+    const text = resolveMinedTemplate(template, card, meta);
+    if (text) fields[fieldName] = text;
+    if (template.includes('{image}') && card.image) {
+      const filename = `mokuro_${meta.volumeUuid.slice(0, 8)}_p${meta.pageIndex + 1}_${Date.now()}.jpg`;
+      images.push({ field: fieldName, filename, data: card.image });
+    }
   }
 
-  const tags = [cfg.markerTag, meta.seriesTitle, meta.volumeTitle]
-    .map(sanitizeTag)
-    .filter((t) => t !== '');
-
-  return { deck: cfg.deck, model: cfg.noteType, fields, images, tags };
+  return { deck: cfg.deck, model: cfg.noteType, fields, images, tags: buildTags(cfg, meta) };
 }

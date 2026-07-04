@@ -1,50 +1,22 @@
 <script lang="ts">
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import { pagedZoom } from '$lib/reader/paged-zoom';
-  import { settings, volumes, updateSetting } from '$lib/settings';
+  import { settings, updateSetting } from '$lib/settings';
   import {
     ArrowLeftOutline,
     ArrowRightOutline,
     CompressOutline,
-    ImageOutline,
     ZoomOutOutline,
     PlusOutline
   } from 'flowbite-svelte-icons';
-  import type { VolumeMetadata } from '$lib/anki-connect';
-  import { showTextBoxPicker } from './text-box-picker';
-  import type { Page } from '$lib/types';
 
   interface Props {
     left: (_e: any, ingoreTimeOut?: boolean) => void;
     right: (_e: any, ingoreTimeOut?: boolean) => void;
-    src1: File | undefined;
-    src2: File | undefined;
-    volumeUuid: string;
-    page1?: Page; // First page data for Anki card creation
-    page2?: Page; // Second page data (when in dual mode)
-    page1Number?: number; // 1-indexed page number for src1/page1
-    page2Number?: number; // 1-indexed page number for src2/page2
     visible?: boolean;
   }
 
-  let {
-    left,
-    right,
-    src1,
-    src2,
-    volumeUuid,
-    page1,
-    page2,
-    page1Number,
-    page2Number,
-    visible = true
-  }: Props = $props();
-
-  let ankiTags = $derived($settings.ankiConnectSettings.tags);
-  let volumeMetadata = $derived<VolumeMetadata>({
-    seriesTitle: $volumes[volumeUuid]?.series_title,
-    volumeTitle: $volumes[volumeUuid]?.volume_title
-  });
+  let { left, right, visible = true }: Props = $props();
 
   let open = $state(false);
 
@@ -70,14 +42,6 @@
     open = false;
   }
 
-  async function onUpdateCard(src: File | undefined, page?: Page, pageNumber?: number) {
-    if ($settings.ankiConnectSettings.enabled && src && page) {
-      // Show text box picker first, then dispatch to create/update based on cardMode
-      showTextBoxPicker(URL.createObjectURL(src), page, ankiTags, volumeMetadata, pageNumber);
-    }
-    open = false;
-  }
-
   function toggleMenu() {
     open = !open;
   }
@@ -88,34 +52,6 @@
     <!-- Action buttons (shown when open) -->
     {#if open}
       <div class="mb-2 flex flex-col items-center gap-2">
-        {#if $settings.ankiConnectSettings.enabled}
-          <button
-            onclick={() => onUpdateCard(src1, page1, page1Number)}
-            class="relative flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-            aria-label="Add image to Anki"
-          >
-            <ImageOutline size="xl" />
-            {#if src2}
-              <span
-                class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-xs text-white"
-                >1</span
-              >
-            {/if}
-          </button>
-        {/if}
-        {#if $settings.ankiConnectSettings.enabled && src2}
-          <button
-            onclick={() => onUpdateCard(src2, page2, page2Number)}
-            class="relative flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-            aria-label="Add image 2 to Anki"
-          >
-            <ImageOutline size="xl" />
-            <span
-              class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-xs text-white"
-              >2</span
-            >
-          </button>
-        {/if}
         <button
           onclick={() => {
             toggleFullScreen();
