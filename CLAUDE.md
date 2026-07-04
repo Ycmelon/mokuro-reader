@@ -373,35 +373,14 @@ Test with Migaku enabled to catch DOM mutation issues.
 
 ## Git Workflow
 
-### Worktree-Based Development (REQUIRED)
+### Develop Directly on `main`
 
-**CRITICAL**: This repository uses git worktrees for ALL development work. The main working directory must remain on the `main` branch at all times.
+Development happens directly on the `main` branch. Do **not** create feature
+branches or git worktrees for development — make edits in place on `main`.
 
-**Rules:**
-
-- The main directory (`/home/nathan/Projects/mokuro-reader`) must ALWAYS stay on `main` branch
-- NEVER create feature branches or make commits directly in the main directory
-- All changes must be made through git worktrees in `/home/nathan/Projects/mokuro-reader-worktrees/`
-
-**Starting new work:**
-
-```bash
-# Create a new worktree for a feature/fix
-git worktree add ../mokuro-reader-worktrees/<branch-name> -b <branch-name>
-
-# Or check out an existing remote branch
-git worktree add ../mokuro-reader-worktrees/<branch-name> <branch-name>
-```
-
-**If asked to make changes without worktree context**: Automatically create an appropriate worktree (e.g., `fix/<issue>` or `feat/<feature>`) and work there. Do not prompt—just create it and proceed.
-
-**Future note**: The protected branch will eventually move from `main` to `develop`.
-
-### General Git Practices
-
-**Don't auto-push during active development**: If `npm run dev` or `npm run preview` is running, the user is actively iterating on changes. Only commit locally and wait for explicit instruction to push. This keeps the commit history clean and allows for squashing/amending before pushing.
-
-**Branch workflow**: Development happens on `develop`. Merge into `main` for releases.
+**Don't commit unless asked**: Leave changes uncommitted in the working tree by
+default. Only commit when the user explicitly asks, and only push when told to.
+This keeps history clean and lets the user verify before anything is recorded.
 
 ## Known Issues and Considerations
 
