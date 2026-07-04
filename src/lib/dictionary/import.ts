@@ -91,7 +91,9 @@ export async function importYomitanDictionary(
       ([expression, reading, definitionTags, rules, score, definitions, sequence, termTags]) => ({
         dictionaryId,
         expression,
-        reading,
+        // Yomitan importer parity: an empty reading means "reads as written".
+        // Storing '' would pile every kana-only term onto one index key.
+        reading: reading.length > 0 ? reading : expression,
         definitionTags,
         rules,
         score,

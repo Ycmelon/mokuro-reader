@@ -49,6 +49,10 @@ function collectDeinflections(candidate: string): DeinflectionCandidate[] {
   const out: DeinflectionCandidate[] = [];
   for (const variant of generateTextVariants(candidate)) {
     for (const transformed of japaneseTransformer.transform(variant)) {
+      // A transform chain can strip a short candidate down to nothing (e.g.
+      // か → ''). An empty form can't be a dictionary headword, and querying
+      // it would match every row with an empty reading.
+      if (transformed.text.length === 0) continue;
       out.push({
         deinflectedText: transformed.text,
         conditions: transformed.conditions,
@@ -61,14 +65,44 @@ function collectDeinflections(candidate: string): DeinflectionCandidate[] {
 
 /** Fetches every stored term whose expression OR reading equals any of `texts`,
  *  de-duplicated by id. Mirrors Yomitan's findTermsBulk querying both the
- *  `expression` and `reading` indices. */
+ *  `expression` and `reading` indices.
+ *
+ *  Query shape matters: one readonly transaction with a parallel getAll per
+ *  key per index (Yomitan's _findMultiBulk pattern). Dexie's anyOf() instead
+ *  walks a single cursor sequentially across the sorted key set — one IDB
+ *  round-trip per key — which benchmarks ~3x slower for the hundreds of
+ *  candidate forms a deinflection scan produces. */
 async function fetchTermsForTexts(texts: string[]): Promise<StoredTerm[]> {
-  const unique = [...new Set(texts)];
+  // Never query the empty string: dictionaries imported before readings were
+  // normalized store '' as the reading for kana-only terms, so reading == ''
+  // would match (and deserialize) a hundred thousand rows in one call.
+  const unique = [...new Set(texts)].filter((t) => t.length > 0);
   if (unique.length === 0) return [];
-  const byExpr = await dictDb.terms.where('expression').anyOf(unique).toArray();
-  const byReading = await dictDb.terms.where('reading').anyOf(unique).toArray();
-  const seenIds = new Set(byExpr.map((t) => t.id));
-  return [...byExpr, ...byReading.filter((t) => !seenIds.has(t.id))];
+  const [byExpr, byReading] = await dictDb.transaction('r', dictDb.terms, () =>
+    Promise.all([
+      Promise.all(unique.map((t) => dictDb.terms.where('expression').equals(t).toArray())),
+      Promise.all(unique.map((t) => dictDb.terms.where('reading').equals(t).toArray()))
+    ])
+  );
+  const seenIds = new Set<number>();
+  const out: StoredTerm[] = [];
+  for (const arr of byExpr) {
+    for (const t of arr) {
+      if (t.id !== undefined && !seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        out.push(t);
+      }
+    }
+  }
+  for (const arr of byReading) {
+    for (const t of arr) {
+      if (t.id !== undefined && !seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        out.push(t);
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -79,10 +113,16 @@ async function fetchTermsForTexts(texts: string[]): Promise<StoredTerm[]> {
  * (こもる, `v5`) is kept. `conditions === 0` (a direct, non-inflected form)
  * matches anything. Mirrors Translator._matchEntriesToDeinflections.
  */
+const conditionFlagsByRules = new Map<string, number>();
 function termMatchesConditions(term: StoredTerm, conditions: number): boolean {
-  const partsOfSpeech = term.rules.length > 0 ? term.rules.split(' ') : [];
-  const definitionConditions =
-    japaneseTransformer.getConditionFlagsFromPartsOfSpeech(partsOfSpeech);
+  // Matching runs per (candidate, term) pair in the scan's hot loop; the flag
+  // computation only depends on the rules string, so memoize it.
+  let definitionConditions = conditionFlagsByRules.get(term.rules);
+  if (definitionConditions === undefined) {
+    const partsOfSpeech = term.rules.length > 0 ? term.rules.split(' ') : [];
+    definitionConditions = japaneseTransformer.getConditionFlagsFromPartsOfSpeech(partsOfSpeech);
+    conditionFlagsByRules.set(term.rules, definitionConditions);
+  }
   return LanguageTransformer.conditionsMatch(conditions, definitionConditions);
 }
 
