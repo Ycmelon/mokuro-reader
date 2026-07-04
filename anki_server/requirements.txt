@@ -1,0 +1,5 @@
+# Pin anki: AnkiWeb's sync protocol is tied to the app version, so an
+# unpinned/old package can start failing syncs after a server-side upgrade.
+anki==26.5
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
