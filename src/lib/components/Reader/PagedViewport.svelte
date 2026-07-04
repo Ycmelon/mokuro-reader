@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { onDestroy, onMount } from 'svelte';
   import { settings } from '$lib/settings';
+  import { miningStage } from '$lib/anki-server/mining';
   import { PagedCamera } from '$lib/reader/paged-camera';
   import { ContinuousZoomController } from '$lib/reader/zoom-controller';
   import type { Size } from '$lib/reader/paged-zoom-layout';
@@ -217,8 +218,11 @@
     },
     onPanMove: (_p, d) => camera.adjustView(-d.dx, -d.dy),
     onPanEnd: (s) => {
+      // While the crop tool is up, panning frames a panel: no page flips and no
+      // inertial glide — the page stops dead on release, matching the crop box.
+      const cropping = $miningStage.kind === 'crop';
       const side =
-        $settings.mobile && !s.cancelled
+        $settings.mobile && !s.cancelled && !cropping
           ? classifySwipe({
               summary: s,
               wasPinch: tracker.wasPinch,
@@ -233,8 +237,9 @@
         // so drop any momentum rather than flinging the outgoing page.
         camera.stopPan();
         onPageFlip?.(side);
-      } else if (s.cancelled) {
-        // OS-cancelled gesture: drop the momentum and settle in place.
+      } else if (s.cancelled || cropping) {
+        // Cancelled gesture, or panning under the crop tool: drop momentum and
+        // settle in place immediately (no fling).
         camera.stopPan();
         camera.settle();
       } else {

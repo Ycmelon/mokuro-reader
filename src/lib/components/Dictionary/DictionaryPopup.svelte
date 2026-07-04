@@ -10,6 +10,11 @@
   } from '$lib/dictionary/lookup';
   import StructuredContent from './StructuredContent.svelte';
   import { miscSettings, settings } from '$lib/settings';
+  import { CreditCardPlusAltOutline } from 'flowbite-svelte-icons';
+  import { startMining } from '$lib/anki-server/mining';
+
+  // The mine button only makes sense when an Anki-server destination exists.
+  let canMine = $derived($miscSettings.ankiServerSettings.token !== '');
 
   let popupEl: HTMLElement | undefined = $state();
   let popup = $derived($dictPopup);
@@ -101,6 +106,21 @@
       <button class="dict-back" aria-label="Back" onclick={popupGoBack}>‹ Back</button>
     {/if}
     <button class="dict-close" aria-label="Close" onclick={closePopup}>×</button>
+    {#if canMine}
+      <!-- One mine button for the whole lookup: the focus is the tapped word as
+           written in the sentence, so it doesn't depend on which entry is shown. -->
+      <button
+        class="dict-mine"
+        aria-label="Mine card"
+        title="Mine card"
+        onclick={() => {
+          startMining();
+          closePopup();
+        }}
+      >
+        <CreditCardPlusAltOutline size="sm" />
+      </button>
+    {/if}
 
     {#each popup.results as result}
       {@const allReadings = [result.reading, ...result.altReadings].filter(
@@ -210,6 +230,31 @@
 
   .dict-definitions :global(a[href^='?']:hover) {
     text-decoration: underline;
+  }
+
+  /* Header mine button — one per lookup. Sticky + floated right so it sits just
+     left of the sticky close button without displacing the headword; z-index
+     keeps it above the close button's stacking neighbours. */
+  .dict-mine {
+    position: sticky;
+    top: 0;
+    float: right;
+    margin: 6px 44px 0 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: var(--color-primary-600);
+    color: #fff;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .dict-mine:hover {
+    background: var(--color-primary-500);
   }
 
   .dict-entry {

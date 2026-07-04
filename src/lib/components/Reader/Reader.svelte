@@ -34,6 +34,9 @@
   import MangaPage from './MangaPage.svelte';
   import TextBoxContextMenu from './TextBoxContextMenu.svelte';
   import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
+  import MineCropOverlay from './MineCropOverlay.svelte';
+  import MineReviewDialog from './MineReviewDialog.svelte';
+  import { miningStage } from '$lib/anki-server/mining';
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
   import { openChatWithExplain } from '$lib/ai-chat/store';
   import {
@@ -77,6 +80,13 @@
   }
 
   let { volumeSettings: _volumeSettingsProp, overlaysVisible = $bindable(true) }: Props = $props();
+
+  // Reader chrome (page HUD, settings/quick-action buttons) hides while the crop
+  // tool is up so it doesn't clutter the framing view.
+  let chromeVisible = $derived(overlaysVisible && $miningStage.kind === 'idle');
+  // The crop overlay is pass-through (so page pan works), which would leave the
+  // edge page-navigation zones tappable underneath — suppress them while cropping.
+  let cropping = $derived($miningStage.kind === 'crop');
 
   let volume = $derived($currentVolume);
   let volumeData = $derived($currentVolumeData);
@@ -1104,13 +1114,13 @@
     page2={!useSinglePage ? pages[index + 1] : undefined}
     page1Number={index + 1}
     page2Number={!useSinglePage ? index + 2 : undefined}
-    visible={overlaysVisible}
+    visible={chromeVisible}
   />
-  <AiChatButton visible={overlaysVisible} />
-  <SettingsButton visible={overlaysVisible} />
+  <AiChatButton visible={chromeVisible} />
+  <SettingsButton visible={chromeVisible} />
   <TextBoxPicker />
   <SelectionToolbar />
-  {#if overlaysVisible}
+  {#if chromeVisible}
     <Popover
       placement="bottom"
       trigger="click"
@@ -1207,32 +1217,34 @@
         onPageFlip={(side) => (side === 'left' ? left(null, true) : right(null, true))}
         onOverlayToggle={() => (overlaysVisible = !overlaysVisible)}
       >
-        <button
-          aria-label="Previous page (left edge)"
-          class="fixed -left-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
-          style:margin-left={`${$settings.edgeButtonWidth}px`}
-          onmousedown={mouseDown}
-          onmouseup={left}
-        ></button>
-        <button
-          aria-label="Next page (right edge)"
-          class="fixed -right-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
-          style:margin-right={`${$settings.edgeButtonWidth}px`}
-          onmousedown={mouseDown}
-          onmouseup={right}
-        ></button>
-        <button
-          aria-label="Previous page (bottom left)"
-          class="fixed top-full -left-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
-          onmousedown={mouseDown}
-          onmouseup={left}
-        ></button>
-        <button
-          aria-label="Next page (bottom right)"
-          class="fixed top-full -right-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
-          onmousedown={mouseDown}
-          onmouseup={right}
-        ></button>
+        {#if !cropping}
+          <button
+            aria-label="Previous page (left edge)"
+            class="fixed -left-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
+            style:margin-left={`${$settings.edgeButtonWidth}px`}
+            onmousedown={mouseDown}
+            onmouseup={left}
+          ></button>
+          <button
+            aria-label="Next page (right edge)"
+            class="fixed -right-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
+            style:margin-right={`${$settings.edgeButtonWidth}px`}
+            onmousedown={mouseDown}
+            onmouseup={right}
+          ></button>
+          <button
+            aria-label="Previous page (bottom left)"
+            class="fixed top-full -left-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
+            onmousedown={mouseDown}
+            onmouseup={left}
+          ></button>
+          <button
+            aria-label="Next page (bottom right)"
+            class="fixed top-full -right-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
+            onmousedown={mouseDown}
+            onmouseup={right}
+          ></button>
+        {/if}
         <!--
           The invert/grayscale filter is applied per page-image and per text
           box (MangaPage / TextBoxes), NOT on this shared panel — putting it
@@ -1281,7 +1293,7 @@
       </PagedViewport>
     </div>
 
-    {#if !$settings.mobile}
+    {#if !$settings.mobile && !cropping}
       <button
         aria-label="Previous page (left edge)"
         onmousedown={mouseDown}
@@ -1316,6 +1328,8 @@
   {/if}
 
   <DictionaryPopup />
+  <MineCropOverlay />
+  <MineReviewDialog />
   <AiChatPanel />
 {:else if $volumesLoaded && !volume}
   <!-- The volumes table has loaded and this UUID genuinely isn't in it. -->

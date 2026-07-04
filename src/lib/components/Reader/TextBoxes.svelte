@@ -142,7 +142,11 @@
       ? "'UD Digi Kyokasho', 'Noto Sans JP', sans-serif"
       : "'Noto Sans JP', sans-serif"
   );
-  let display = $derived($settings.displayOCR ? 'block' : 'none');
+  // Hide OCR boxes entirely while the crop tool is up: they'd sit uselessly under
+  // the overlay, and dropping those layers cuts compositing work during dragging.
+  let display = $derived(
+    $miningStage.kind === 'crop' ? 'none' : $settings.displayOCR ? 'block' : 'none'
+  );
   let alwaysShowOCR = $derived($settings.alwaysShowOCR);
   let border = $derived($settings.textBoxBorders ? '1px solid red' : 'none');
   let contenteditable = $derived($settings.textEditable);
@@ -584,6 +588,7 @@
     setActiveTextBox,
     highlightWord
   } from '$lib/dictionary/lookup';
+  import { setMiningContext, miningStage } from '$lib/anki-server/mining';
 
   // Devices with a real pointer (mouse) reveal text via :hover, so a single
   // click should look up immediately. Touch devices use tap-to-reveal first.
@@ -617,6 +622,10 @@
     // User drag-selected text — don't override their selection
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
+
+    // Any new tap invalidates a prior lookup's mining context; only a successful
+    // lookup below re-establishes it (so the popup's mine button has fresh data).
+    setMiningContext(null);
 
     // Select mode: a tap toggles this box in/out of the ordered selection
     // instead of doing a dictionary lookup. Reveal the box so it stays readable.
@@ -688,6 +697,21 @@
     highlightWord(rangesForSpan(segments, combinedOffset, combinedOffset + match.utf16Length));
 
     showLookup(match.state);
+
+    // Give the popup's mine button everything it needs to capture a card: the
+    // full sentence (this box), the focus word as it's actually written in the
+    // sentence (the matched span, not the dictionary headword), and the live
+    // page container to crop against.
+    setMiningContext({
+      sentence: combined.trim(),
+      focus: combined.slice(combinedOffset, combinedOffset + match.utf16Length),
+      page,
+      pageIndex: pageIndex ?? 0,
+      volumeUuid,
+      seriesTitle: $volumes[volumeUuid]?.series_title ?? '',
+      volumeTitle: $volumes[volumeUuid]?.volume_title ?? '',
+      getPageEl: () => boxEl?.closest<HTMLElement>('[data-page-index]') ?? null
+    });
   }
 
   /** Collects the text-node segments of a text box in reading order, tracking
