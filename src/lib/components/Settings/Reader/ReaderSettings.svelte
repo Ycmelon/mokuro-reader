@@ -73,7 +73,7 @@
   }
 </script>
 
-<AccordionItem open={inReader}>
+<AccordionItem>
   {#snippet header()}Reader{/snippet}
   <div class="flex flex-col gap-5">
     <!-- 1. Continuous scroll toggle - always visible -->

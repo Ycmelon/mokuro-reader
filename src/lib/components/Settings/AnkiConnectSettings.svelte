@@ -113,7 +113,7 @@
 
     <!-- Connection Section -->
     <div>
-      <Label class="text-gray-900 dark:text-white">AnkiConnect URL:</Label>
+      <Label class="mb-1 text-gray-900 dark:text-white">AnkiConnect URL:</Label>
       <div class="flex gap-2">
         <Input
           type="text"
@@ -205,7 +205,7 @@
       <!-- Create Mode: Note Type Selection + Configure -->
       {#if cardMode === 'create'}
         <div>
-          <Label class="text-gray-900 dark:text-white">Note Type:</Label>
+          <Label class="mb-1 text-gray-900 dark:text-white">Note Type:</Label>
           <div class="flex gap-2">
             <Select
               {disabled}
@@ -290,7 +290,7 @@
       <h4 class="text-gray-900 dark:text-white">Image Quality</h4>
       <Helper>Customize the image size and quality stored in Anki</Helper>
       <div>
-        <Label class="text-gray-900 dark:text-white">Max Height (0 = no limit):</Label>
+        <Label class="mb-1 text-gray-900 dark:text-white">Max Height (0 = no limit):</Label>
         <Input
           {disabled}
           type="number"
@@ -303,7 +303,7 @@
         />
       </div>
       <div>
-        <Label class="text-gray-900 dark:text-white">Max Width (0 = no limit):</Label>
+        <Label class="mb-1 text-gray-900 dark:text-white">Max Width (0 = no limit):</Label>
         <Input
           {disabled}
           type="number"
@@ -316,7 +316,9 @@
         />
       </div>
       <div>
-        <Label class="text-gray-900 dark:text-white">Quality (0-1, lower = smaller file):</Label>
+        <Label class="mb-1 text-gray-900 dark:text-white"
+          >Quality (0-1, lower = smaller file):</Label
+        >
         <Input
           {disabled}
           type="number"
