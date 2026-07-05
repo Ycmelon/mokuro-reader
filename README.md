@@ -16,6 +16,10 @@ Notable features:
 - **[Yomitan](https://github.com/yomidevs/yomitan)** - the Japanese
   word-segmentation and deinflection engine is derived from Yomitan, licensed
   under GPL-3.0-or-later
+- **[10ten Japanese Reader](https://github.com/birchill/10ten-ja-reader)** - the
+  bundled pitch-accent and word-frequency/priority data are generated from
+  10ten's dataset, and the era-year (和暦) conversion is ported in spirit from
+  it, licensed under GPL-3.0
 - **[Jitendex](https://jitendex.org)** - Japanese-English dictionary,
   © CC BY-SA 4.0 Stephen Kraus 2023–2026
 - **[JMdict](https://www.edrdg.org/)** (incorporated into Jitendex) - © the
