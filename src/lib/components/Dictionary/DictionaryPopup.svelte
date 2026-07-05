@@ -10,9 +10,17 @@
     popupGoBack
   } from '$lib/dictionary/lookup';
   import StructuredContent from './StructuredContent.svelte';
+  import PitchAccent from './PitchAccent.svelte';
   import { miscSettings, settings } from '$lib/settings';
   import { CreditCardPlusAltOutline } from 'flowbite-svelte-icons';
   import { startMining } from '$lib/anki-server/mining';
+  import type { LookupResult } from '$lib/dictionary/types';
+
+  let pitchMode = $derived($miscSettings.pitchAccentDisplay ?? 'downstep');
+
+  function pitchFor(result: LookupResult, reading: string) {
+    return result.pitches.find((p) => p.reading === reading);
+  }
 
   // The mine button only makes sense when the active protocol has a live
   // connection: a server session for 'server', a connected AnkiConnect for
@@ -128,18 +136,49 @@
     {/if}
 
     {#each popup.results as result}
-      {@const allReadings = [result.reading, ...result.altReadings].filter(
-        (r) => r && r !== result.expression
-      )}
+      <!-- Kana-only words have no distinct kanji writing: the readings become the
+           primary (large) headword, so we don't also repeat them in 【】. -->
+      {@const primary = result.writings.length > 0 ? result.writings : result.readings}
+      {@const showReadingLine = result.writings.length > 0}
       <div class="dict-entry">
         <div class="dict-headword">
-          <span class="dict-expression">{result.expression}</span>
-          {#if result.altExpressions.length > 0}
-            <span class="dict-alt-expressions">{result.altExpressions.join('・')}</span>
+          <span class="dict-expression">
+            {#each primary as hw, i}
+              {#if i > 0}<span class="dict-sep">・</span>{/if}<span
+                class="dict-writing"
+                class:obscure={hw.obscure}
+                >{#if !showReadingLine && pitchMode !== 'none'}{@const pitch = pitchFor(
+                    result,
+                    hw.text
+                  )}{#if pitch}<PitchAccent
+                      reading={hw.text}
+                      position={pitch.positions[0]}
+                      mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
+                    />{#each pitch.positions.slice(1) as p}<span class="dict-pitch-alt">[{p}]</span
+                      >{/each}{:else}{hw.text}{/if}{:else}{hw.text}{/if}{#if hw.priority}<span
+                    class="dict-star">★</span
+                  >{/if}</span
+              >
+            {/each}
+          </span>
+
+          {#if showReadingLine}
+            <span class="dict-reading"
+              >【{#each result.readings as r, i}{#if i > 0}<span class="dict-sep">・</span
+                  >{/if}{@const pitch =
+                  pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
+                  class="dict-reading-item"
+                  class:obscure={r.obscure}
+                  >{#if pitch}<PitchAccent
+                      reading={r.text}
+                      position={pitch.positions[0]}
+                      mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
+                    />{#each pitch.positions.slice(1) as p}<span class="dict-pitch-alt">[{p}]</span
+                      >{/each}{:else}{r.text}{/if}</span
+                >{/each}】</span
+            >
           {/if}
-          {#if allReadings.length > 0}
-            <span class="dict-reading">【{allReadings.join('・')}】</span>
-          {/if}
+
           {#if result.inflectionPath.length > 0}
             <span class="dict-inflection">{result.inflectionPath.join(' › ')}</span>
           {/if}
@@ -281,12 +320,23 @@
     font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
   }
 
-  /* Alternative writings of the same word (merged by JMdict sequence) */
-  .dict-alt-expressions {
-    font-size: 15px;
-    color: var(--color-gray-400);
-    margin-left: 6px;
-    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
+  /* Rare/old/irregular forms are de-emphasized so the standard form reads first. */
+  .dict-writing.obscure {
+    color: var(--color-gray-500);
+    font-weight: 400;
+    font-size: 16px;
+  }
+
+  .dict-sep {
+    color: var(--color-gray-500);
+  }
+
+  /* Priority (common) marker on a writing/reading. */
+  .dict-star {
+    color: var(--color-yellow-400);
+    font-size: 11px;
+    vertical-align: super;
+    margin-left: 1px;
   }
 
   .dict-reading {
@@ -294,6 +344,18 @@
     color: var(--color-gray-400);
     margin-left: 4px;
     font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
+  }
+
+  .dict-reading-item.obscure {
+    color: var(--color-gray-500);
+  }
+
+  /* Additional accent positions for a reading with more than one pattern. */
+  .dict-pitch-alt {
+    font-size: 11px;
+    color: var(--color-primary-400);
+    margin-left: 2px;
+    vertical-align: super;
   }
 
   /* Deinflection trace — not part of the dictionary, kept minimal/neutral */

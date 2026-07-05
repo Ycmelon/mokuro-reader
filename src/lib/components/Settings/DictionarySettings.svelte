@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { AccordionItem, Button, Helper, Label, Progressbar, Range } from 'flowbite-svelte';
+  import {
+    AccordionItem,
+    Button,
+    Helper,
+    Label,
+    Progressbar,
+    Range,
+    Select
+  } from 'flowbite-svelte';
   import {
     bundledDictStatuses,
     ensureBundledDictionaries,
@@ -9,6 +17,13 @@
 
   let statuses = $derived($bundledDictStatuses);
   let popupHeight = $derived($miscSettings.dictionaryPopupHeight ?? 30);
+  let pitchDisplay = $derived($miscSettings.pitchAccentDisplay ?? 'downstep');
+
+  const pitchOptions = [
+    { value: 'downstep', name: 'Downstep (はꜜし)' },
+    { value: 'binary', name: 'Pitch graph' },
+    { value: 'none', name: 'Off' }
+  ];
 
   function retry() {
     ensureBundledDictionaries().catch(() => {
@@ -70,6 +85,22 @@
       />
       <Helper class="text-xs"
         >Portion of the screen the definition popup covers (default 30%).</Helper
+      >
+    </div>
+
+    <div class="mt-1">
+      <Label class="mb-1 text-gray-900 dark:text-white">Pitch accent display</Label>
+      <Select
+        items={pitchOptions}
+        value={pitchDisplay}
+        onchange={(e) =>
+          updateMiscSetting(
+            'pitchAccentDisplay',
+            (e.target as HTMLSelectElement).value as 'none' | 'downstep' | 'binary'
+          )}
+      />
+      <Helper class="text-xs"
+        >How pitch accent is drawn on readings (from the Pitch Accents dictionary).</Helper
       >
     </div>
   </div>

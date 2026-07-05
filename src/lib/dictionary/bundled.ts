@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import { base } from '$app/paths';
 import { dictDb } from './db';
 import { importYomitanDictionary } from './import';
+import { invalidateTermMetaCache } from './lookup';
 
 /**
  * Bundled dictionaries ship in the app's static assets (same-origin, so no
@@ -21,7 +22,17 @@ export interface BundledDictionary {
 }
 
 export const BUNDLED_DICTIONARIES: BundledDictionary[] = [
-  { label: 'Jitendex', filename: 'jitendex-yomitan.zip', titlePrefix: 'Jitendex' }
+  { label: 'Jitendex', filename: 'jitendex-yomitan.zip', titlePrefix: 'Jitendex' },
+  {
+    label: 'Pitch Accents',
+    filename: 'pitch-accents.zip',
+    titlePrefix: 'JMdict Pitch Accents'
+  },
+  {
+    label: 'Frequencies',
+    filename: 'frequency.zip',
+    titlePrefix: 'JMdict Frequencies'
+  }
 ];
 
 export type BundledDictState = 'idle' | 'downloading' | 'importing' | 'ready' | 'error';
@@ -120,21 +131,31 @@ async function deleteByPrefix(titlePrefix: string): Promise<void> {
   const idsToDelete = dicts.map((d) => d.id!).filter((id) => id !== undefined);
   const remainingCount = await dictDb.dictionaries.count();
 
-  await dictDb.transaction('rw', dictDb.dictionaries, dictDb.terms, dictDb.tags, async () => {
-    // If we're deleting every dictionary in the DB, clear() is a single native
-    // O(1) IDBObjectStore operation — orders of magnitude faster than a
-    // cursor-based where().delete() across ~200k rows.
-    if (idsToDelete.length === remainingCount) {
-      await dictDb.terms.clear();
-      await dictDb.tags.clear();
-    } else {
-      for (const id of idsToDelete) {
-        await dictDb.terms.where('dictionaryId').equals(id).delete();
-        await dictDb.tags.where('dictionaryId').equals(id).delete();
+  await dictDb.transaction(
+    'rw',
+    dictDb.dictionaries,
+    dictDb.terms,
+    dictDb.tags,
+    dictDb.termMeta,
+    async () => {
+      // If we're deleting every dictionary in the DB, clear() is a single native
+      // O(1) IDBObjectStore operation — orders of magnitude faster than a
+      // cursor-based where().delete() across ~200k rows.
+      if (idsToDelete.length === remainingCount) {
+        await dictDb.terms.clear();
+        await dictDb.tags.clear();
+        await dictDb.termMeta.clear();
+      } else {
+        for (const id of idsToDelete) {
+          await dictDb.terms.where('dictionaryId').equals(id).delete();
+          await dictDb.tags.where('dictionaryId').equals(id).delete();
+          await dictDb.termMeta.where('dictionaryId').equals(id).delete();
+        }
       }
+      await dictDb.dictionaries.bulkDelete(idsToDelete);
     }
-    await dictDb.dictionaries.bulkDelete(idsToDelete);
-  });
+  );
+  invalidateTermMetaCache();
 }
 
 const MAX_ATTEMPTS = 2;
@@ -151,8 +172,12 @@ async function verifyHealthy(titlePrefix: string): Promise<number | null> {
   if (!record || record.id === undefined || record.entryCount <= 0) {
     return null;
   }
-  const actual = await dictDb.terms.where('dictionaryId').equals(record.id).count();
-  return actual === record.entryCount ? record.entryCount : null;
+  // entryCount spans both tables (a pitch dictionary stores term_meta, not terms).
+  const [terms, meta] = await Promise.all([
+    dictDb.terms.where('dictionaryId').equals(record.id).count(),
+    dictDb.termMeta.where('dictionaryId').equals(record.id).count()
+  ]);
+  return terms + meta === record.entryCount ? record.entryCount : null;
 }
 
 async function loadDictionary(dict: BundledDictionary): Promise<void> {

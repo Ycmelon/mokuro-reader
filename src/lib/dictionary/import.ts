@@ -6,12 +6,65 @@ function readText(entry: Entry): Promise<string> {
   return (entry as any).getData(new TextWriter()) as Promise<string>;
 }
 import { dictDb } from './db';
-import type { StoredTerm, StoredTag, Definition } from './types';
+import { invalidateTermMetaCache } from './lookup';
+import type { StoredTerm, StoredTag, StoredTermMeta, Definition } from './types';
 
 type TermBankEntry = [string, string, string, string, number, Definition[], number, string];
 type TagBankEntry = [string, string, number, string, number];
 
+// Yomitan term_meta_bank rows: [expression, mode, data]. We consume pitch and
+// frequency modes; the data shape depends on the mode.
+type TermMetaEntry = [string, string, unknown];
+
 const CHUNK_SIZE = 500;
+
+/**
+ * Parses one Yomitan term_meta_bank row into a StoredTermMeta, or null for modes
+ * we don't store. Pitch data is `{ reading, pitches: [{ position }] }`; frequency
+ * data comes in several shapes (bare number/string, `{ value, displayValue }`, or
+ * a `[reading, data]` pair for reading-specific frequencies).
+ */
+function parseTermMeta(
+  dictionaryId: number,
+  [expression, mode, data]: TermMetaEntry
+): StoredTermMeta | null {
+  if (mode === 'pitch') {
+    const d = data as { reading?: string; pitches?: { position?: number }[] };
+    const positions = (d.pitches ?? [])
+      .map((p) => p.position)
+      .filter((p): p is number => typeof p === 'number');
+    if (positions.length === 0) return null;
+    return { dictionaryId, expression, mode: 'pitch', reading: d.reading, positions };
+  }
+
+  if (mode === 'freq') {
+    let reading: string | undefined;
+    let value: unknown = data;
+    // Reading-specific frequency: [reading, freqData]
+    if (Array.isArray(data) && data.length === 2 && typeof data[0] === 'string') {
+      reading = data[0];
+      value = data[1];
+    }
+    let frequency: string;
+    let frequencyValue: number;
+    if (typeof value === 'number') {
+      frequencyValue = value;
+      frequency = String(value);
+    } else if (typeof value === 'string') {
+      frequencyValue = Number.parseInt(value, 10) || 0;
+      frequency = value;
+    } else if (value && typeof value === 'object') {
+      const v = value as { value?: number; displayValue?: string };
+      frequencyValue = typeof v.value === 'number' ? v.value : 0;
+      frequency = v.displayValue ?? String(v.value ?? '');
+    } else {
+      return null;
+    }
+    return { dictionaryId, expression, mode: 'freq', reading, frequency, frequencyValue };
+  }
+
+  return null;
+}
 
 export async function importYomitanDictionary(
   file: Blob,
@@ -110,8 +163,32 @@ export async function importYomitanDictionary(
     totalTerms += terms.length;
   }
 
+  // Import term_meta banks (pitch accent / frequency), if present.
+  const metaBanks = entries
+    .filter((e) => /^term_meta_bank_\d+\.json$/.test(e.filename))
+    .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
+
+  let totalMeta = 0;
+  for (let i = 0; i < metaBanks.length; i++) {
+    onProgress?.(90 + Math.round((i / metaBanks.length) * 8), `Importing pitch/frequency data…`);
+    const raw: TermMetaEntry[] = JSON.parse(await readText(metaBanks[i]));
+    const metas: StoredTermMeta[] = [];
+    for (const entry of raw) {
+      const parsed = parseTermMeta(dictionaryId, entry);
+      if (parsed) metas.push(parsed);
+    }
+    for (let j = 0; j < metas.length; j += CHUNK_SIZE) {
+      await dictDb.termMeta.bulkAdd(metas.slice(j, j + CHUNK_SIZE));
+    }
+    totalMeta += metas.length;
+  }
+
   await zipReader.close();
-  // Mark complete only after every term bank is in — this is the integrity gate.
-  await dictDb.dictionaries.update(dictionaryId, { entryCount: totalTerms, complete: true });
-  onProgress?.(100, `Imported ${totalTerms.toLocaleString()} entries`);
+  // entryCount is the integrity gate (compared against row counts on load), so
+  // it must cover both tables — a pitch-only dictionary has 0 terms but many
+  // term_meta rows.
+  const entryCount = totalTerms + totalMeta;
+  await dictDb.dictionaries.update(dictionaryId, { entryCount, complete: true });
+  invalidateTermMetaCache();
+  onProgress?.(100, `Imported ${entryCount.toLocaleString()} entries`);
 }

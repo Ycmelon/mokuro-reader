@@ -98,17 +98,53 @@ export interface StoredTerm {
   termTags: string;
 }
 
+/** A single writing or reading of a merged entry, with display hints derived
+ *  from the dictionary's headword tags. */
+export interface Headword {
+  text: string;
+  /** Rare/old/irregular/obsolete form — rendered de-emphasized. */
+  obscure: boolean;
+  /** Priority (common) spelling or reading — carries a star. */
+  priority: boolean;
+}
+
+/** Pitch-accent data for one reading. Each position is the mora index of the
+ *  downstep; 0 means heiban (no downstep). */
+export interface PitchAccent {
+  reading: string;
+  positions: number[];
+}
+
+/** A Yomitan term_meta_bank row. Only pitch and frequency modes are stored;
+ *  other modes (e.g. IPA) are ignored on import. */
+export interface StoredTermMeta {
+  id?: number;
+  dictionaryId: number;
+  expression: string;
+  mode: 'pitch' | 'freq';
+  reading?: string;
+  /** Pitch: downstep mora positions (0 = heiban). */
+  positions?: number[];
+  /** Freq: a display string (e.g. a rank) and a numeric value for sorting. */
+  frequency?: string;
+  frequencyValue?: number;
+}
+
 export interface LookupResult {
-  /** Primary writing (highest-scoring of the merged lexical entry). */
+  /** Primary writing (first non-obscure, highest-scoring of the merged entry). */
   expression: string;
   /** Primary reading. */
   reading: string;
-  /** Other writings of the same word (same JMdict sequence). */
-  altExpressions: string[];
-  /** Other readings of the same word. */
-  altReadings: string[];
+  /** All kanji writings of the entry (same JMdict sequence), primary first. */
+  writings: Headword[];
+  /** All kana readings of the entry, primary first. */
+  readings: Headword[];
   definitions: Definition[];
   dictionaryTitle: string;
   score: number;
+  /** The entry as a whole is a high-priority (common) word. */
+  priority: boolean;
   inflectionPath: string[];
+  /** Pitch-accent readings, when a pitch dictionary is installed. */
+  pitches: PitchAccent[];
 }
