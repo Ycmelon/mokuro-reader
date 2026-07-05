@@ -75,6 +75,16 @@ describe('resolveMinedTemplate', () => {
   it('converts newlines to <br>', () => {
     expect(resolveMinedTemplate('a\nb', card, meta)).toBe('a<br>b');
   });
+
+  it('escapes HTML in substituted values (Anki fields are HTML)', () => {
+    const c: LogicalCard = { ...card, meaning: '1 < 2 & "so"', sentence: '<ruby>屑</ruby>' };
+    expect(resolveMinedTemplate('{meaning}', c, meta)).toBe('1 &lt; 2 &amp; "so"');
+    expect(resolveMinedTemplate('{sentence}', c, meta)).toBe('&lt;ruby&gt;屑&lt;/ruby&gt;');
+  });
+
+  it('leaves markup written in the template itself intact', () => {
+    expect(resolveMinedTemplate('<b>{word}</b>', card, meta)).toBe('<b>大外れ</b>');
+  });
 });
 
 describe('validateCardConfig', () => {

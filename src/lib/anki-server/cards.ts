@@ -55,20 +55,28 @@ export function defaultFieldTemplates(fields: string[]): FieldMapping[] {
   });
 }
 
+/** Escape HTML-special characters in a substituted value. Anki fields are HTML,
+ *  so a literal `<` in OCR/AI text would otherwise be parsed as markup. Only the
+ *  values are escaped — markup the user writes in the template stays intact. */
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * Resolve a field template against the mined card. Text variables are
- * substituted; `{image}` is stripped (the image is attached separately). Newlines
- * become `<br>` for Anki. Returns the resolved text (may be '').
+ * substituted (HTML-escaped); `{image}` is stripped (the image is attached
+ * separately). Newlines become `<br>` for Anki. Returns the resolved text
+ * (may be '').
  */
 export function resolveMinedTemplate(template: string, card: LogicalCard, meta: CardMeta): string {
   const resolved = template
-    .replace(/\{word\}/g, card.word ?? '')
-    .replace(/\{reading\}/g, card.reading ?? '')
-    .replace(/\{meaning\}/g, card.meaning ?? '')
-    .replace(/\{sentence\}/g, card.sentence ?? '')
-    .replace(/\{extra\}/g, card.extra ?? '')
-    .replace(/\{series\}/g, meta.seriesTitle ?? '')
-    .replace(/\{volume\}/g, meta.volumeTitle ?? '')
+    .replace(/\{word\}/g, escapeHtml(card.word ?? ''))
+    .replace(/\{reading\}/g, escapeHtml(card.reading ?? ''))
+    .replace(/\{meaning\}/g, escapeHtml(card.meaning ?? ''))
+    .replace(/\{sentence\}/g, escapeHtml(card.sentence ?? ''))
+    .replace(/\{extra\}/g, escapeHtml(card.extra ?? ''))
+    .replace(/\{series\}/g, escapeHtml(meta.seriesTitle ?? ''))
+    .replace(/\{volume\}/g, escapeHtml(meta.volumeTitle ?? ''))
     .replace(/\{page\}/g, String(meta.pageIndex + 1))
     .replace(/\{image\}/g, ''); // image is attached separately, not text
   return resolved

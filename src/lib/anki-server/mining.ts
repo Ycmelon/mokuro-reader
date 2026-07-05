@@ -98,12 +98,32 @@ export function cancelMining(): void {
 }
 
 /**
+ * Pure screen→image crop math: intersect an on-screen crop rectangle with the
+ * page's on-screen box and scale into image pixels. The page container is sized
+ * to the image's natural dimensions and painted with `background-size: contain`,
+ * so one uniform scale maps its rect to image pixels — no zoom/pan knowledge
+ * needed. Returns null when the crop misses the page entirely.
+ */
+export function screenRectToImageCrop(
+  screenRect: { left: number; top: number; width: number; height: number },
+  pageBox: { left: number; top: number; width: number },
+  img_width: number,
+  img_height: number
+): { x: number; y: number; width: number; height: number } | null {
+  const scale = img_width / pageBox.width;
+  const x = clamp((screenRect.left - pageBox.left) * scale, 0, img_width);
+  const y = clamp((screenRect.top - pageBox.top) * scale, 0, img_height);
+  const right = clamp((screenRect.left + screenRect.width - pageBox.left) * scale, 0, img_width);
+  const bottom = clamp((screenRect.top + screenRect.height - pageBox.top) * scale, 0, img_height);
+  const width = right - x;
+  const height = bottom - y;
+  if (width < 1 || height < 1) return null;
+  return { x, y, width, height };
+}
+
+/**
  * Convert an on-screen crop rectangle to image-pixel coordinates, produce the
  * cropped JPEG (base64), and advance to the review stage.
- *
- * The page container is sized to the image's natural pixel dimensions and painted
- * with `background-size: contain`, so its on-screen rect maps to image pixels by a
- * single uniform scale — no zoom/pan knowledge needed here.
  */
 export async function finishCrop(screenRect: DOMRect): Promise<void> {
   const stage = get(miningStage);
@@ -123,12 +143,11 @@ export async function finishCrop(screenRect: DOMRect): Promise<void> {
   }
 
   const { img_width, img_height } = ctx.page;
-  const scale = img_width / box.width;
-
-  const x = clamp((screenRect.left - box.left) * scale, 0, img_width);
-  const y = clamp((screenRect.top - box.top) * scale, 0, img_height);
-  const width = clamp(screenRect.width * scale, 1, img_width - x);
-  const height = clamp(screenRect.height * scale, 1, img_height - y);
+  const crop = screenRectToImageCrop(screenRect, box, img_width, img_height);
+  if (!crop) {
+    showSnackbar('Error: the crop box is outside the page');
+    return;
+  }
 
   const url = extractPageImageUrl(pageEl);
   if (!url) {
@@ -136,7 +155,13 @@ export async function finishCrop(screenRect: DOMRect): Promise<void> {
     return;
   }
 
-  const image = await getCroppedImg(url, { x, y, width, height });
+  let image: string | null | undefined;
+  try {
+    image = await getCroppedImg(url, crop);
+  } catch {
+    showSnackbar('Error: could not crop the page image');
+    return;
+  }
   if (!image) {
     // getCroppedImg already surfaces its own failure snackbar.
     return;
