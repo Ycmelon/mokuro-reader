@@ -77,6 +77,12 @@ class Outbox:
         self._cards.append(card)
         self._flush()
 
+    def pop(self) -> None:
+        """Remove the most recently queued card (used when its local add fails)."""
+        if self._cards:
+            self._cards.pop()
+            self._flush()
+
     def all(self) -> list[NewCard]:
         return list(self._cards)
 

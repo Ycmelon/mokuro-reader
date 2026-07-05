@@ -80,12 +80,20 @@ class SessionStore:
                 return None
             return session
 
+    # Persist a touch at most this often per session. last_used only feeds the
+    # (30-day) idle expiry, so losing under a minute of it on a crash is fine —
+    # not worth rewriting the whole file on every authenticated request.
+    TOUCH_FLUSH_SECS = 60
+
     def touch(self, token: str) -> None:
         with self._lock:
             session = self._sessions.get(token)
             if session is not None:
-                session.last_used = time.time()
-                self._flush_locked()
+                now = time.time()
+                flush = now - session.last_used >= self.TOUCH_FLUSH_SECS
+                session.last_used = now
+                if flush:
+                    self._flush_locked()
 
     def update_endpoint(self, token: str, endpoint: str) -> None:
         """AnkiWeb can hand back a new shard endpoint during sync; persist it."""

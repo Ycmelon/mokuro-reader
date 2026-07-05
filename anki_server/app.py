@@ -37,6 +37,11 @@ log = logging.getLogger("anki_server.app")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    if "*" in config.CORS_ORIGINS:
+        log.warning(
+            "ANKI_SERVER_CORS_ORIGINS is '*' — any website can POST AnkiWeb "
+            "credentials to /login. Lock this to your reader's origin in production."
+        )
     yield
     # Flush pending pushes and close every open collection cleanly on shutdown.
     manager.shutdown()
@@ -66,15 +71,17 @@ class LoginRequest(BaseModel):
 
 class ImageItem(BaseModel):
     field: str
-    filename: str
-    data: str  # raw base64 or a data: URL
+    filename: str = Field(max_length=255)
+    # Raw base64 or a data: URL. Capped so a client can't balloon server memory;
+    # 16 MiB of base64 ≈ a 12 MiB image, far beyond any page crop.
+    data: str = Field(max_length=16 * 1024 * 1024)
 
 
 class CardRequest(BaseModel):
     deck: str
     model: str
     fields: dict[str, str]
-    images: list[ImageItem] = Field(default_factory=list)
+    images: list[ImageItem] = Field(default_factory=list, max_length=10)
     tags: list[str] = Field(default_factory=list)
 
 
@@ -90,10 +97,25 @@ _login_hits: dict[str, list[float]] = {}
 _login_lock = threading.Lock()
 
 
+def _client_ip(request: Request) -> str:
+    if config.TRUST_PROXY:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def _rate_limit_login(ip: str) -> None:
     now = time.time()
     with _login_lock:
-        hits = [t for t in _login_hits.get(ip, []) if now - t < config.LOGIN_WINDOW_SECS]
+        # Prune every IP's expired hits so the map can't grow without bound.
+        for known in list(_login_hits):
+            fresh = [t for t in _login_hits[known] if now - t < config.LOGIN_WINDOW_SECS]
+            if fresh:
+                _login_hits[known] = fresh
+            else:
+                del _login_hits[known]
+        hits = _login_hits.get(ip, [])
         if len(hits) >= config.LOGIN_MAX_ATTEMPTS:
             raise HTTPException(429, "too many login attempts; try again later")
         hits.append(now)
@@ -127,7 +149,9 @@ def _uc_for(session: Session):
 
 @app.post("/login")
 async def login(body: LoginRequest, request: Request):
-    _rate_limit_login(request.client.host if request.client else "unknown")
+    _rate_limit_login(_client_ip(request))
+    if body.endpoint and not config.ALLOW_CUSTOM_ENDPOINT:
+        raise HTTPException(400, "custom sync endpoints are disabled on this server")
 
     user_id = user_id_for(body.username)
     log.info("POST /login: user=%s — starting (this can take a while on first login)", body.username)

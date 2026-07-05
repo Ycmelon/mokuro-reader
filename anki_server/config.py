@@ -23,6 +23,13 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 # Directory holding sessions.json and per-user collections/.
 DATA_DIR = Path(_env("ANKI_SERVER_DATA_DIR", str(Path(__file__).parent / "data")))
 
@@ -50,6 +57,17 @@ SESSION_IDLE_SECS = _env_int("ANKI_SERVER_SESSION_IDLE_SECS", 30 * 24 * 60 * 60)
 # be used as an AnkiWeb credential-stuffing proxy.
 LOGIN_MAX_ATTEMPTS = _env_int("ANKI_SERVER_LOGIN_MAX_ATTEMPTS", 10)
 LOGIN_WINDOW_SECS = _env_int("ANKI_SERVER_LOGIN_WINDOW_SECS", 300)
+
+# When running behind a reverse proxy, request.client.host is the proxy's
+# address — every user would share one login rate-limit bucket. Set this to
+# trust X-Forwarded-For for the real client IP (only enable when the proxy
+# strips/sets that header itself).
+TRUST_PROXY = _env_bool("ANKI_SERVER_TRUST_PROXY", False)
+
+# /login accepts an optional custom sync endpoint, which makes the server
+# connect outbound to a client-chosen URL with the user's credentials. Off by
+# default; enable only if you actually use a self-hosted sync server.
+ALLOW_CUSTOM_ENDPOINT = _env_bool("ANKI_SERVER_ALLOW_CUSTOM_ENDPOINT", False)
 
 HOST = _env("ANKI_SERVER_HOST", "127.0.0.1")
 PORT = _env_int("ANKI_SERVER_PORT", 8000)

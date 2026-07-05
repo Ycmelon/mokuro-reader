@@ -114,7 +114,14 @@ class UserCollection:
     def _maybe_pull(self) -> None:
         if time.time() - self.last_pull_at <= config.PULL_STALE_SECS:
             return
-        res = sync.normal_sync(self.col, self.auth, sync_media=False)
+        try:
+            res = sync.normal_sync(self.col, self.auth, sync_media=False)
+        except Exception as e:
+            # AnkiWeb unreachable — the add must still succeed locally (the
+            # outbox + debounced push deliver it once the network is back).
+            log.warning("pre-add pull failed (continuing with local add): %s", e)
+            self.last_error = str(e)
+            return
         self._apply_endpoint(res)
         if res.status == "ok":
             self.last_pull_at = time.time()
@@ -135,6 +142,13 @@ class UserCollection:
                 # A queued card whose note type/field no longer exists on the server
                 # copy — drop it rather than wedge every future sync.
                 log.warning("outbox replay skipped a card: %s", e)
+            except Exception as e:
+                # Any other per-card failure (e.g. a media write) must not abort
+                # the replay mid-list and wedge the full-sync resolution.
+                log.warning("outbox replay skipped a card (unexpected error): %s", e)
+        # Note: if an earlier push reached AnkiWeb but its response was lost, the
+        # outbox wasn't cleared and this replay duplicates those cards. For mined
+        # cards a duplicate is the acceptable failure mode (vs silent loss).
 
     def _sync_now(self, *, prefer: str = "auto") -> None:
         """Normal sync; if AnkiWeb demands a full sync, resolve it losslessly and
@@ -171,9 +185,17 @@ class UserCollection:
     def _do_add(self, card: cards.NewCard) -> dict:
         self._ensure_open()
         self._maybe_pull()
-        result = cards.add_card(self.col, card)
-        # Queue the payload so a later full download can replay it (see _sync_now).
+        # Queue before committing: a crash between the two leaves at worst a
+        # queued card to replay (dupes are recoverable), never a note that exists
+        # locally but silently vanishes on the next full download.
         self.outbox.add(card)
+        try:
+            result = cards.add_card(self.col, card)
+        except Exception:
+            # The add itself was rejected (bad field/model/image) — don't leave
+            # the invalid payload queued for every future replay.
+            self.outbox.pop()
+            raise
         return result
 
     def _do_push(self) -> None:
