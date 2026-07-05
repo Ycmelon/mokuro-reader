@@ -50,7 +50,6 @@ export type AnkiConnectionData = {
   models: string[];
   modelFields: Record<string, string[]>; // modelName -> fieldNames
   lastConnected?: string; // ISO timestamp
-  isAndroid?: boolean; // Auto-detected: true if createDeck fails
 };
 
 // AnkiConnect is now only a *transport* for the shared Anki-mining flow, so this
@@ -585,7 +584,10 @@ export function updateVolumeDefaults(key: VolumeDefaultsKey, value: any) {
   });
 }
 
-export function updateAnkiSetting(key: AnkiSettingsKey, value: any) {
+export function updateAnkiSetting<K extends AnkiSettingsKey>(
+  key: K,
+  value: AnkiConnectSettings[K]
+) {
   _profilesInternal.update((profiles) => {
     const profileId = get(currentProfile);
     return {

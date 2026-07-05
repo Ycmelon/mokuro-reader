@@ -16,12 +16,11 @@ import { get } from 'svelte/store';
 
 export * from './cropper';
 
-/** Volume identity used when generating image filenames / metadata. */
-export type VolumeMetadata = {
-  seriesTitle?: string;
-  volumeTitle?: string;
-  coverImage?: string; // Base64 data URL of the volume cover/thumbnail
-};
+/** Timeout for ordinary AnkiConnect actions (local network; generous for
+ *  addNote with an embedded image). */
+const ACTION_TIMEOUT_MS = 30_000;
+/** requestPermission blocks until the user answers Anki's popup — give them time. */
+const PERMISSION_TIMEOUT_MS = 300_000;
 
 export async function blobToBase64(blob: Blob) {
   return new Promise<string | null>((resolve) => {
@@ -31,41 +30,8 @@ export async function blobToBase64(blob: Blob) {
   });
 }
 
-export async function imageResize(
-  canvas: OffscreenCanvas,
-  ctx: OffscreenCanvasRenderingContext2D,
-  maxWidth: number,
-  maxHeight: number
-): Promise<OffscreenCanvas> {
-  return new Promise((resolve, reject) => {
-    const widthRatio = maxWidth <= 0 ? 1 : maxWidth / canvas.width;
-    const heightRatio = maxHeight <= 0 ? 1 : maxHeight / canvas.height;
-    const ratio = Math.min(1, Math.min(widthRatio, heightRatio));
-
-    if (ratio < 1) {
-      const newWidth = canvas.width * ratio;
-      const newHeight = canvas.height * ratio;
-      createImageBitmap(canvas, {
-        resizeWidth: newWidth,
-        resizeHeight: newHeight,
-        resizeQuality: 'high'
-      })
-        .then((sprite) => {
-          canvas.width = newWidth;
-          canvas.height = newHeight;
-          ctx.drawImage(sprite, 0, 0);
-          resolve(canvas);
-        })
-        .catch((e) => reject(e));
-    } else {
-      resolve(canvas);
-    }
-  });
-}
-
 /**
  * Fetches connection data from AnkiConnect including decks, models, and fields.
- * Also detects if running on AnkiConnect Android by testing createDeck support.
  */
 export async function fetchConnectionData(testUrl?: string): Promise<AnkiConnectionData | null> {
   const url = testUrl || get(settings).ankiConnectSettings.url || 'http://127.0.0.1:8765';
@@ -92,27 +58,17 @@ export async function fetchConnectionData(testUrl?: string): Promise<AnkiConnect
       return null;
     }
 
-    // Fetch field names for each model
+    // Fetch field names for all models in parallel (one serial round trip per
+    // note type adds up fast for users with large collections).
     const modelFields: Record<string, string[]> = {};
-    for (const model of models) {
-      const fields = await ankiConnectRaw(url, 'modelFieldNames', { modelName: model });
-      if (fields) {
-        modelFields[model] = fields;
+    const fieldLists = await Promise.all(
+      models.map((model: string) => ankiConnectRaw(url, 'modelFieldNames', { modelName: model }))
+    );
+    models.forEach((model: string, i: number) => {
+      if (fieldLists[i]) {
+        modelFields[model] = fieldLists[i];
       }
-    }
-
-    // Detect Android by trying to create a temporary deck
-    let isAndroid = false;
-    const tempDeckName = `__mokuro_test_${Date.now()}`;
-    const createResult = await ankiConnectRaw(url, 'createDeck', { deck: tempDeckName });
-
-    if (createResult === null) {
-      // createDeck failed - likely Android
-      isAndroid = true;
-    } else {
-      // createDeck succeeded - delete the temp deck (desktop only)
-      await ankiConnectRaw(url, 'deleteDecks', { decks: [tempDeckName], cardsToo: true });
-    }
+    });
 
     return {
       connected: true,
@@ -120,8 +76,7 @@ export async function fetchConnectionData(testUrl?: string): Promise<AnkiConnect
       decks,
       models,
       modelFields,
-      lastConnected: new Date().toISOString(),
-      isAndroid
+      lastConnected: new Date().toISOString()
     };
   } catch (e: any) {
     showSnackbar(`Connection failed: ${e?.message ?? String(e)}`);
@@ -140,7 +95,8 @@ async function ankiConnectRaw(
   try {
     const res = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ action, params, version: 6 })
+      body: JSON.stringify({ action, params, version: 6 }),
+      signal: AbortSignal.timeout(ACTION_TIMEOUT_MS)
     });
     const json = await res.json();
     if (json.error) {
@@ -168,7 +124,8 @@ async function requestAnkiPermission(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ action: 'requestPermission', version: 6 })
+      body: JSON.stringify({ action: 'requestPermission', version: 6 }),
+      signal: AbortSignal.timeout(PERMISSION_TIMEOUT_MS)
     });
     const json = await res.json();
     return json.result?.permission === 'granted';
@@ -188,7 +145,8 @@ export async function testConnection(testUrl?: string): Promise<ConnectionTestRe
   try {
     const res = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ action: 'version', version: 6 })
+      body: JSON.stringify({ action: 'version', version: 6 }),
+      signal: AbortSignal.timeout(ACTION_TIMEOUT_MS)
     });
 
     const json = await res.json();
@@ -209,6 +167,14 @@ export async function testConnection(testUrl?: string): Promise<ConnectionTestRe
   } catch (e: any) {
     // Distinguish between different error types
     const errorMessage = e?.message ?? String(e);
+
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      return {
+        success: false,
+        error: 'network',
+        message: 'AnkiConnect did not respond in time. Check that Anki is running.'
+      };
+    }
 
     // CORS errors typically show as "Failed to fetch" or similar network errors
     if (e instanceof TypeError && errorMessage.includes('Failed to fetch')) {
@@ -260,7 +226,8 @@ export async function ankiConnect(
   try {
     const res = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ action, params, version: 6 })
+      body: JSON.stringify({ action, params, version: 6 }),
+      signal: AbortSignal.timeout(ACTION_TIMEOUT_MS)
     });
     const json = await res.json();
 
@@ -277,6 +244,11 @@ export async function ankiConnect(
 
     // Provide more helpful error messages
     const errorMessage = e?.message ?? String(e);
+
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      showSnackbar('Error: AnkiConnect did not respond in time. Check that Anki is running.');
+      return undefined;
+    }
 
     if (e instanceof TypeError && errorMessage.includes('Failed to fetch')) {
       // Try requesting permission if we haven't already retried

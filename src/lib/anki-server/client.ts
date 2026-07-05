@@ -21,7 +21,19 @@ export class UnauthorizedError extends Error {
 }
 
 function joinUrl(base: string, path: string): string {
-  return base.replace(/\/+$/, '') + path;
+  return base.trim().replace(/\/+$/, '') + path;
+}
+
+/** Default timeout for quick calls (status / cards). */
+const DEFAULT_TIMEOUT_MS = 60_000;
+/** Login and manual sync can legitimately pull a whole collection + media. */
+const LONG_TIMEOUT_MS = 300_000;
+
+function mapFetchError(e: unknown, serverUrl: string): Error {
+  if (e instanceof DOMException && e.name === 'TimeoutError') {
+    return new Error(`The server at ${serverUrl} took too long to respond`);
+  }
+  return new Error(`Could not reach the server at ${serverUrl}`);
 }
 
 async function errorFrom(response: Response): Promise<string> {
@@ -47,7 +59,7 @@ async function errorFrom(response: Response): Promise<string> {
 async function authedFetch(
   serverUrl: string,
   path: string,
-  opts: { method?: string; token: string; json?: unknown } = { token: '' }
+  opts: { method?: string; token: string; json?: unknown; timeoutMs?: number } = { token: '' }
 ): Promise<Response> {
   const headers: Record<string, string> = { Authorization: `Bearer ${opts.token}` };
   if (opts.json !== undefined) headers['Content-Type'] = 'application/json';
@@ -57,10 +69,11 @@ async function authedFetch(
     response = await fetch(joinUrl(serverUrl, path), {
       method: opts.method,
       headers,
-      body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined
+      body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined,
+      signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
     });
-  } catch {
-    throw new Error(`Could not reach the server at ${serverUrl}`);
+  } catch (e) {
+    throw mapFetchError(e, serverUrl);
   }
 
   if (response.status === 401) {
@@ -87,10 +100,12 @@ export async function login(
     response = await fetch(joinUrl(serverUrl, '/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password }),
+      // First login downloads the whole collection before responding.
+      signal: AbortSignal.timeout(LONG_TIMEOUT_MS)
     });
-  } catch {
-    throw new Error(`Could not reach the server at ${serverUrl}`);
+  } catch (e) {
+    throw mapFetchError(e, serverUrl);
   }
 
   if (!response.ok) {
@@ -139,7 +154,13 @@ export async function sync(
   token: string,
   direction: 'auto' | 'download' | 'upload' = 'auto'
 ): Promise<void> {
-  await authedFetch(serverUrl, '/sync', { method: 'POST', token, json: { direction } });
+  await authedFetch(serverUrl, '/sync', {
+    method: 'POST',
+    token,
+    json: { direction },
+    // A manual sync may resolve a full sync + media transfer.
+    timeoutMs: LONG_TIMEOUT_MS
+  });
 }
 
 /** Best-effort logout — invalidates the token server-side. */

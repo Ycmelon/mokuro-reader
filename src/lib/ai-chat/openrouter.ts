@@ -29,14 +29,25 @@ export async function streamOpenRouter(
     ? [{ role: 'system', content: systemPrompt }, ...plainMessages]
     : plainMessages;
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ model, messages: wireMessages, stream: true })
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, messages: wireMessages, stream: true }),
+      // Covers the whole stream: a stalled connection otherwise leaves the
+      // caller's spinner stuck forever. Replies here are short; 2 min is ample.
+      signal: AbortSignal.timeout(120_000)
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      throw new Error('OpenRouter took too long to respond. Please try again.');
+    }
+    throw e;
+  }
 
   if (!response.ok) {
     let detail = '';
@@ -59,7 +70,16 @@ export async function streamOpenRouter(
   let full = '';
 
   while (true) {
-    const { done, value } = await reader.read();
+    let done: boolean;
+    let value: Uint8Array | undefined;
+    try {
+      ({ done, value } = await reader.read());
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('OpenRouter took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 
