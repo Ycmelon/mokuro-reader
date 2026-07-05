@@ -1,8 +1,13 @@
 # Mokurod (Mokuro with dictionary)
 
-Opinionated fork of Mokuro Reader with inbuilt mobile-friendly Japanese-English dictionary lookup features (largely from Yomitan)
+Opinionated fork of Mokuro Reader with a focus on (1) frictionless, (2) mobile-friendly Japanese language learning
 
-Note: No Anki integration currently
+Notable features:
+
+- Inbuilt Japanese-English dictionary lookup (credit to Yomitan, Jitendex)
+- Hosted Anki sync server as an alternative to AnkiConnect (which is desktop only)
+- Optimised Anki card creation flow, including mobile-friendly manga crop
+- LLM features for quick sentence explanation and flashcard generation
 
 ## Credits
 
