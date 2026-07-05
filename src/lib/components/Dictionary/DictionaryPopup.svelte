@@ -14,8 +14,14 @@
   import { CreditCardPlusAltOutline } from 'flowbite-svelte-icons';
   import { startMining } from '$lib/anki-server/mining';
 
-  // The mine button only makes sense when an Anki-server destination exists.
-  let canMine = $derived($miscSettings.ankiServerSettings.token !== '');
+  // The mine button only makes sense when the active protocol has a live
+  // connection: a server session for 'server', a connected AnkiConnect for
+  // 'ankiconnect'.
+  let canMine = $derived(
+    $miscSettings.ankiServerSettings.protocol === 'server'
+      ? $miscSettings.ankiServerSettings.token !== ''
+      : ($settings.ankiConnectSettings.connectionData?.connected ?? false)
+  );
 
   let popupEl: HTMLElement | undefined = $state();
   let popup = $derived($dictPopup);

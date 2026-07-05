@@ -3,7 +3,7 @@
   import { get } from 'svelte/store';
   import { Button, Input, Label, Spinner } from 'flowbite-svelte';
   import { showSnackbar } from '$lib/util';
-  import { miscSettings } from '$lib/settings/misc';
+  import { miscSettings, clearAnkiServerSession } from '$lib/settings/misc';
   import {
     miningStage,
     reopenCrop,
@@ -151,11 +151,18 @@
       return;
     }
 
+    const word = focus.trim();
+    const sent = sentence.trim();
+    if (!word && !sent) {
+      genError = 'Add a focus word or a sentence before sending.';
+      return;
+    }
+
     sending = true;
     genError = '';
     try {
       await sendMinedCard(
-        { word: focus, reading, meaning, sentence, extra, image: image ?? '' },
+        { word, reading, meaning, sentence: sent, extra, image: image ?? '' },
         cfg,
         {
           seriesTitle: ctx.seriesTitle,
@@ -168,21 +175,29 @@
       cancelMining();
     } catch (e) {
       // Keep the dialog open so the user can fix and retry without re-mining.
-      genError =
-        e instanceof UnauthorizedError
-          ? 'Session expired — log in again in Settings → Anki.'
-          : e instanceof Error
-            ? e.message
-            : String(e);
+      if (e instanceof UnauthorizedError) {
+        // Fully drop the dead session so the mine button doesn't keep inviting
+        // sends that can only 401 (the user re-logs in via Settings → Anki).
+        clearAnkiServerSession();
+        genError = 'Session expired — log in again in Settings → Anki.';
+      } else {
+        genError = e instanceof Error ? e.message : String(e);
+      }
     } finally {
       sending = false;
     }
   }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && !sending) cancelMining();
+  }
 </script>
+
+<svelte:window onkeydown={$miningStage.kind === 'review' ? onKeydown : undefined} />
 
 {#if $miningStage.kind === 'review'}
   <div class="review-scrim" style="z-index: 2000;">
-    <div class="review-card" bind:this={cardEl}>
+    <div class="review-card bg-white dark:bg-gray-800" bind:this={cardEl}>
       <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Review card</h2>
 
       <div>
@@ -205,22 +220,38 @@
         <Button size="sm" color="alternative" class="mt-2" onclick={onRedoCrop}>Redo crop</Button>
       </div>
 
-      {#if generated}
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Reading</Label>
-          <Input bind:value={reading} class="w-full" />
-        </div>
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Meaning</Label>
-          <textarea class={taClass} rows="1" bind:value={meaning} use:autogrow={meaning}></textarea>
-        </div>
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Extra</Label>
-          <textarea class={taClass} rows="1" bind:value={extra} use:autogrow={extra}></textarea>
-        </div>
-        {#if comments}
-          <p class="text-sm text-amber-600 dark:text-amber-400">{comments}</p>
+      <!-- AI generation sits between the mined half above and the (manually
+           editable) generated half below; all fields stay visible so a card can
+           be filled in and sent without ever calling the AI. -->
+      <Button
+        color="alternative"
+        class="w-full"
+        onclick={onGenerate}
+        disabled={generating || sending}
+      >
+        {#if generating}
+          <Spinner size="4" class="me-2" />{generated ? 'Regenerating…' : 'Generating…'}
+        {:else}
+          {generated ? 'Regenerate' : 'Generate with AI'}
         {/if}
+      </Button>
+
+      <div>
+        <Label class="mb-1 text-gray-900 dark:text-white">Reading</Label>
+        <Input bind:value={reading} class="w-full" />
+      </div>
+      <div>
+        <Label class="mb-1 text-gray-900 dark:text-white">Meaning</Label>
+        <textarea class={taClass} rows="1" bind:value={meaning} use:autogrow={meaning}></textarea>
+      </div>
+      <div>
+        <Label class="mb-1 text-gray-900 dark:text-white">Extra</Label>
+        <textarea class={taClass} rows="1" bind:value={extra} use:autogrow={extra}></textarea>
+      </div>
+      {#if comments}
+        <p class="text-sm text-amber-600 dark:text-amber-400">{comments}</p>
+      {/if}
+      {#if generated}
         <div>
           <Label class="mb-1 text-gray-900 dark:text-white">Feedback (applied on Regenerate)</Label>
           <textarea
@@ -241,18 +272,9 @@
 
       <div class="relative z-10 flex flex-wrap justify-end gap-2 pt-1">
         <Button color="alternative" onclick={cancelMining} disabled={sending}>Cancel</Button>
-        {#if generated}
-          <Button color="alternative" onclick={onGenerate} disabled={generating || sending}>
-            {generating ? 'Regenerating…' : 'Regenerate'}
-          </Button>
-          <Button color="primary" onclick={onSendToAnki} disabled={sending}>
-            {#if sending}<Spinner size="4" class="me-2" />Sending…{:else}Send to Anki{/if}
-          </Button>
-        {:else}
-          <Button color="primary" onclick={onGenerate} disabled={generating}>
-            {#if generating}<Spinner size="4" class="me-2" />Generating…{:else}Generate{/if}
-          </Button>
-        {/if}
+        <Button color="primary" onclick={onSendToAnki} disabled={sending || generating}>
+          {#if sending}<Spinner size="4" class="me-2" />Sending…{:else}Send to Anki{/if}
+        </Button>
       </div>
     </div>
   </div>
@@ -269,6 +291,9 @@
     background: rgba(0, 0, 0, 0.5);
   }
 
+  /* Background comes from the bg-white/dark:bg-gray-800 utility classes so the
+     card follows the app theme (a hardcoded dark bg made the gray-900 labels
+     unreadable in light mode). */
   .review-card {
     display: flex;
     flex-direction: column;
@@ -279,7 +304,6 @@
     overflow-y: auto;
     padding: 20px;
     border-radius: 12px;
-    background: var(--color-gray-800, #1f2937);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
   }
 

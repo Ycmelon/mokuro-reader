@@ -92,6 +92,7 @@
     (e.target as Element).releasePointerCapture?.(e.pointerId);
     window.removeEventListener('pointermove', scheduleMove);
     window.removeEventListener('pointerup', endInteraction);
+    window.removeEventListener('pointercancel', endInteraction);
   }
 
   function begin(e: PointerEvent, mode: Interaction['mode']) {
@@ -106,6 +107,9 @@
     (e.target as Element).setPointerCapture?.(e.pointerId);
     window.addEventListener('pointermove', scheduleMove);
     window.addEventListener('pointerup', endInteraction);
+    // A cancelled pointer (incoming call, browser gesture, tab switch) must
+    // also end the interaction or the box sticks to the next stray pointer.
+    window.addEventListener('pointercancel', endInteraction);
   }
 
   // Pointerdown on the backdrop starts a fresh draw (replaces any prior rect).

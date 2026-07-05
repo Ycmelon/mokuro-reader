@@ -2,7 +2,12 @@
   import { page } from '$app/stores';
   import { AccordionItem, Button, Helper, Input, Label, Select } from 'flowbite-svelte';
   import { onMount } from 'svelte';
-  import { miscSettings, updateAnkiServerSetting, type AnkiProtocol } from '$lib/settings/misc';
+  import {
+    miscSettings,
+    updateAnkiServerSetting,
+    clearAnkiServerSession,
+    type AnkiProtocol
+  } from '$lib/settings/misc';
   import { settings, updateAnkiSetting } from '$lib/settings';
   import {
     getStatus,
@@ -66,15 +71,35 @@
   // ── Card destination handlers (shared) ──────────────────────────────────────
   function onNoteTypeChange(name: string) {
     updateAnkiServerSetting('noteType', name);
-    // Seed sensible default templates the first time a note type is chosen, so
-    // fields named e.g. "Word"/"Image" map themselves without opening the dialog.
-    if (name && !$miscSettings.ankiServerSettings.fieldTemplates[name]) {
-      updateAnkiServerSetting('fieldTemplates', {
-        ...$miscSettings.ankiServerSettings.fieldTemplates,
-        [name]: defaultFieldTemplates(fieldsFor(name))
-      });
-    }
   }
+
+  // Persist sensible default templates whenever the selected note type has no
+  // usable saved mapping and its field list is known — so fields named e.g.
+  // "Word"/"Image" map themselves without ever opening the Configure dialog.
+  // This runs both on selection *and* on load (when a persisted note type's
+  // fields become available), and it recovers from a stale empty `[]` that a
+  // simple `!fieldTemplates[name]` guard would treat as "already seeded".
+  let seededSig = '';
+  $effect(() => {
+    const name = cfg.noteType;
+    const fields = noteFields;
+    if (!name || fields.length === 0) return;
+    // Run once per (note type, field-set); the seed writes back into the store
+    // this effect reads, so the signature guard is what prevents a loop.
+    const sig = `${name}\u0000${fields.join('\u0000')}`;
+    if (sig === seededSig) return;
+    seededSig = sig;
+
+    const existing = $miscSettings.ankiServerSettings.fieldTemplates[name];
+    // Any saved entry list wins — even one whose templates are all blank, since
+    // that's a deliberate "map nothing" choice saved from the Configure dialog.
+    // Only a missing mapping or a stale empty `[]` gets the name-match defaults.
+    if (existing && existing.length > 0) return;
+    updateAnkiServerSetting('fieldTemplates', {
+      ...$miscSettings.ankiServerSettings.fieldTemplates,
+      [name]: defaultFieldTemplates(fields)
+    });
+  });
 
   // ── Anki Server actions ─────────────────────────────────────────────────────
   async function refreshServerStatus() {
@@ -93,8 +118,7 @@
   }
 
   function clearServerSession() {
-    updateAnkiServerSetting('token', '');
-    updateAnkiServerSetting('username', '');
+    clearAnkiServerSession();
     serverStatus = null;
   }
 
@@ -102,9 +126,10 @@
     error = '';
     busy = true;
     try {
-      const token = await apiLogin(serverUrl, username, password);
-      updateAnkiServerSetting('serverUrl', serverUrl.replace(/\/+$/, ''));
-      updateAnkiServerSetting('username', username);
+      const url = serverUrl.trim().replace(/\/+$/, '');
+      const token = await apiLogin(url, username.trim(), password);
+      updateAnkiServerSetting('serverUrl', url);
+      updateAnkiServerSetting('username', username.trim());
       updateAnkiServerSetting('token', token);
       password = '';
       await refreshServerStatus();
@@ -219,7 +244,8 @@
           placeholder="https://anki.example.com"
           bind:value={serverUrl}
           disabled={isLoggedIn || busy}
-          onchange={() => updateAnkiServerSetting('serverUrl', serverUrl.replace(/\/+$/, ''))}
+          onchange={() =>
+            updateAnkiServerSetting('serverUrl', serverUrl.trim().replace(/\/+$/, ''))}
           class="flex-1"
         />
       </div>

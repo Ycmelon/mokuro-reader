@@ -102,6 +102,7 @@
     (e.target as Element).releasePointerCapture?.(e.pointerId);
     window.removeEventListener('pointermove', scheduleMove);
     window.removeEventListener('pointerup', endInteraction);
+    window.removeEventListener('pointercancel', endInteraction);
   }
 
   function begin(e: PointerEvent, mode: Interaction['mode']) {
@@ -114,6 +115,9 @@
     (e.target as Element).setPointerCapture?.(e.pointerId);
     window.addEventListener('pointermove', scheduleMove);
     window.addEventListener('pointerup', endInteraction);
+    // A cancelled pointer (incoming call, browser gesture, tab switch) must
+    // also end the interaction or the box sticks to the next stray pointer.
+    window.addEventListener('pointercancel', endInteraction);
   }
 
   async function onDone() {
@@ -125,9 +129,17 @@
     if (e.key === 'Escape') cancelMining();
     else if (e.key === 'Enter') onDone();
   }
+
+  // Keep the window inside the viewport when it changes (e.g. phone rotation).
+  function onResize() {
+    if (rect) rect = clampRect(rect);
+  }
 </script>
 
-<svelte:window onkeydown={$miningStage.kind === 'crop' ? onKeydown : undefined} />
+<svelte:window
+  onkeydown={$miningStage.kind === 'crop' ? onKeydown : undefined}
+  onresize={$miningStage.kind === 'crop' ? onResize : undefined}
+/>
 
 {#if $miningStage.kind === 'crop' && rect}
   <!-- Root is pointer-events:none so page pan/zoom stays live underneath. -->

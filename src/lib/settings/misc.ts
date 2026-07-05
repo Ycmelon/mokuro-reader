@@ -157,3 +157,12 @@ export function updateAnkiServerSetting<K extends keyof AnkiServerSettings>(
     ankiServerSettings: { ...s.ankiServerSettings, [key]: value }
   }));
 }
+
+/** Drop the stored Anki-server session (expired/invalid token). Shared by the
+ *  settings panel and the mine review dialog so a 401 anywhere logs out fully. */
+export function clearAnkiServerSession() {
+  miscSettings.update((s) => ({
+    ...s,
+    ankiServerSettings: { ...s.ankiServerSettings, token: '', username: '' }
+  }));
+}
