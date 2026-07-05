@@ -1,5 +1,6 @@
 <script lang="ts">
   import { run } from 'svelte/legacy';
+  import { get } from 'svelte/store';
   import type { TransitionConfig } from 'svelte/transition';
 
   import { currentSeries, currentVolume, currentVolumeData, volumesLoaded } from '$lib/catalog';
@@ -7,7 +8,15 @@
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { setInstantAnimations } from '$lib/reader/animator';
   import { keyboardShouldIgnore } from '$lib/reader/input/gesture-target';
-  import { activeTextBox, dictPopup, closePopup } from '$lib/dictionary/lookup';
+  import {
+    activeTextBox,
+    clearActiveTextBox,
+    clearWordHighlight,
+    dictPopup,
+    popupStack,
+    popupGoBack,
+    closePopup
+  } from '$lib/dictionary/lookup';
   import {
     selectMode,
     enterSelectMode,
@@ -36,9 +45,9 @@
   import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
   import MineCropOverlay from './MineCropOverlay.svelte';
   import MineReviewDialog from './MineReviewDialog.svelte';
-  import { miningStage } from '$lib/anki-server/mining';
+  import { miningStage, cancelMining } from '$lib/anki-server/mining';
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
-  import { openChatWithExplain } from '$lib/ai-chat/store';
+  import { chatOpen, closeChat, openChatWithExplain } from '$lib/ai-chat/store';
   import {
     BackwardStepSolid,
     CaretLeftSolid,
@@ -91,9 +100,17 @@
   // consumed by the pointer-driven left/right below.
   let pressDismissesSelection = false;
 
+  // Whether a tap/Escape would visibly dismiss something. The active-box flag
+  // only counts when its clearing is visible: with always-show OCR every box
+  // is permanently revealed, so consuming the input for an invisible state
+  // change would just feel like a dead page-turn/keypress.
+  function hasDismissableLayer(): boolean {
+    return $dictPopup !== null || ($activeTextBox !== null && !$settings.alwaysShowOCR);
+  }
+
   function mouseDown() {
     start = new Date();
-    pressDismissesSelection = $activeTextBox !== null || $dictPopup !== null;
+    pressDismissesSelection = hasDismissableLayer();
   }
 
   export function toggleHasCover(volumeId: string) {
@@ -351,16 +368,53 @@
       case 'KeyV':
         toggleContinuousScroll();
         return;
-      case 'Escape':
-        if ($selectMode) {
-          exitSelectMode();
-          return;
-        }
-        navigateBack();
-        return;
       default:
         break;
     }
+  }
+
+  // Escape layering — the ONE place that decides which reader layer a
+  // keystroke dismisses. It runs in the CAPTURE phase so it beats the root
+  // layout's global bubble-phase Escape handler (+layout.svelte), which
+  // otherwise navigates back first and unmounts the reader before any
+  // overlay's own listener can run — leaving the overlay's module-level store
+  // set, so it reappears on the next reader visit. Topmost layer first;
+  // consuming the event keeps it from the layout's back-navigation and from
+  // the overlays' own (now unreachable for Escape) bubble listeners.
+  function handleEscapeCapture(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.isComposing) return;
+    // The mine review dialog owns its Escape handling — leave it untouched.
+    if ($miningStage.kind === 'review') return;
+
+    const consume = () => e.stopImmediatePropagation();
+
+    if ($miningStage.kind === 'crop') {
+      consume();
+      cancelMining();
+    } else if (showContextMenu) {
+      consume();
+      showContextMenu = false;
+    } else if ($chatOpen) {
+      consume();
+      closeChat();
+    } else if ($popupStack.length > 0) {
+      consume();
+      popupGoBack();
+    } else if ($dictPopup) {
+      consume();
+      closePopup();
+    } else if ($selectMode) {
+      consume();
+      exitSelectMode();
+    } else if ($activeTextBox) {
+      // Clearing the revealed box is only a visible dismissal when boxes
+      // aren't permanently shown; otherwise clean up the state but let the
+      // keystroke fall through so Escape doesn't feel dead.
+      if (!$settings.alwaysShowOCR) consume();
+      clearActiveTextBox();
+      clearWordHighlight();
+    }
+    // Nothing open: fall through — the layout's global handler navigates back.
   }
 
   onMount(() => {
@@ -415,6 +469,28 @@
       };
     }
     return { width: first.img_width, height: first.img_height };
+  });
+
+  // Select mode is reader-session state: leaving the reader (or crossing into
+  // another volume) with it armed would make taps in the next session silently
+  // toggle selections instead of doing lookups — and Copy would join text
+  // from different volumes.
+  let selectModeVolume: string | undefined;
+  $effect(() => {
+    const uuid = volume?.volume_uuid;
+    if (uuid && selectModeVolume && uuid !== selectModeVolume) exitSelectMode();
+    if (uuid) selectModeVolume = uuid;
+  });
+  onDestroy(() => {
+    exitSelectMode();
+    // Same leak class for the lookup layers: their stores are module-level,
+    // so leaving the reader by any route (back button, HUD, volume switch)
+    // would otherwise carry an open popup / revealed box / crop overlay into
+    // the next reader session. (An in-progress mine REVIEW is kept — its
+    // dialog holds user-edited fields worth restoring.)
+    closePopup();
+    clearActiveTextBox();
+    if (get(miningStage).kind === 'crop') cancelMining();
   });
 
   // Fire reader closed event when component is destroyed (navigating away)
@@ -946,6 +1022,7 @@
     windowHeight = window.innerHeight;
     // The paged viewport re-applies its base on resize internally.
   }}
+  onkeydowncapture={handleEscapeCapture}
   onkeydown={handleShortcuts}
   onscroll={() => {
     // Detect and fix scroll position drift caused by scrolling in overlays
@@ -1155,17 +1232,21 @@
   {/if}
 
   {#if showContextMenu && contextMenuData}
-    <TextBoxContextMenu
-      x={contextMenuData.x}
-      y={contextMenuData.y}
-      lines={contextMenuData.lines}
-      textBoxElement={contextMenuData.imgElement}
-      onCopy={() => {}}
-      onCopyRaw={() => {}}
-      onSelect={handleContextMenuSelect}
-      onExplain={handleContextMenuExplain}
-      onClose={() => (showContextMenu = false)}
-    />
+    <!-- Keyed so a second right-click on a different box remounts the menu:
+         it snapshots its text/selection with plain consts at init (deliberate,
+         see its comments), so a reused instance would keep serving the first
+         box's text. -->
+    {#key contextMenuData}
+      <TextBoxContextMenu
+        x={contextMenuData.x}
+        y={contextMenuData.y}
+        lines={contextMenuData.lines}
+        textBoxElement={contextMenuData.imgElement}
+        onSelect={handleContextMenuSelect}
+        onExplain={handleContextMenuExplain}
+        onClose={() => (showContextMenu = false)}
+      />
+    {/key}
   {/if}
 
   <DictionaryPopup />

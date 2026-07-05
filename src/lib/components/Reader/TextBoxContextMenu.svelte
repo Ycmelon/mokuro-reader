@@ -1,20 +1,18 @@
 <script lang="ts">
   import { MessagesOutline } from 'flowbite-svelte-icons';
+  import { showSnackbar } from '$lib/util';
 
   interface Props {
     x: number;
     y: number;
     lines: string[];
     textBoxElement?: HTMLElement | null;
-    onCopy: () => void;
-    onCopyRaw: () => void;
     onSelect: () => void;
     onExplain: (text: string) => void;
     onClose: () => void;
   }
 
-  let { x, y, lines, textBoxElement, onCopy, onCopyRaw, onSelect, onExplain, onClose }: Props =
-    $props();
+  let { x, y, lines, textBoxElement, onSelect, onExplain, onClose }: Props = $props();
 
   // Snapshot selection at menu open time — don't reactively track changes.
   // Reactive tracking causes a race with Yomitan: clicking our menu dismisses
@@ -142,7 +140,7 @@
     e.stopPropagation();
     const text = selection.replace(/[\n\r\t]/g, '');
     copyToClipboard(text);
-    onCopy();
+    showSnackbar('Copied to clipboard');
     closeAfterAction();
   }
 
@@ -150,7 +148,7 @@
     e.preventDefault();
     e.stopPropagation();
     copyToClipboard(selection);
-    onCopyRaw();
+    showSnackbar('Copied to clipboard');
     closeAfterAction();
   }
 
@@ -158,7 +156,7 @@
     e.preventDefault();
     e.stopPropagation();
     copyToClipboard(fullTextStripped);
-    onCopy();
+    showSnackbar('Copied to clipboard');
     closeAfterAction();
   }
 
@@ -167,7 +165,7 @@
     e.stopPropagation();
     const text = lines.join('\n');
     copyToClipboard(text);
-    onCopyRaw();
+    showSnackbar('Copied to clipboard');
     closeAfterAction();
   }
 
@@ -185,14 +183,12 @@
     closeAfterAction();
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      onClose();
-    }
-  }
+  // Escape is handled by the reader's capture-phase coordinator
+  // (Reader.svelte handleEscapeCapture), which closes this menu ahead of the
+  // layout's global back-navigation.
 </script>
 
-<svelte:window onclick={onClose} onkeydown={handleKeydown} />
+<svelte:window onclick={onClose} />
 
 <div
   bind:this={menuElement}

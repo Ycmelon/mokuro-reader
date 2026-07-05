@@ -5,6 +5,7 @@
     closePopup,
     activeTextBox,
     clearActiveTextBox,
+    clearWordHighlight,
     lookupReference,
     popupGoBack
   } from '$lib/dictionary/lookup';
@@ -69,19 +70,17 @@
       closePopup();
     } else if ($activeTextBox) {
       clearActiveTextBox();
+      // The tapped-character highlight survives a no-match lookup as feedback
+      // (closePopup never ran) — dismissing the box must take it along.
+      clearWordHighlight();
     }
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      if (canGoBack) popupGoBack();
-      else if (popup) closePopup();
-      else clearActiveTextBox();
-    }
-  }
+  // Escape is handled by the reader's capture-phase coordinator
+  // (Reader.svelte handleEscapeCapture), which layers this popup against the
+  // other reader overlays and the layout's global back-navigation.
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
 <svelte:document onmousedown={handleDocumentMousedown} />
 
 {#if popup}

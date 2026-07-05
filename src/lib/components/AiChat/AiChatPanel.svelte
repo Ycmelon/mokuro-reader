@@ -124,6 +124,10 @@
     }
   }
 
+  // Escape is handled by the reader's capture-phase coordinator
+  // (Reader.svelte handleEscapeCapture), which closes this panel ahead of the
+  // layout's global back-navigation.
+
   // Close on outside click, but only when the click *starts* on the backdrop —
   // mirrors Settings.svelte so a text selection dragged past the panel edge
   // doesn't dismiss the drawer on mouseup.
