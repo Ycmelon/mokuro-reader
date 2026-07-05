@@ -137,12 +137,27 @@
   let border = $derived($settings.textBoxBorders ? '1px solid red' : 'none');
   let contenteditable = $derived($settings.textEditable);
 
-  // Track adjusted font sizes for each textbox
-  let adjustedFontSizes = $state<Map<number, string>>(new Map());
-  // Track which textboxes need word wrapping enabled
-  let needsWrapping = $state<Set<number>>(new Set());
-  // Track which textboxes have been processed
-  let processedTextBoxes = $state<Set<number>>(new Set());
+  // Every sizing input the measurement pipeline bakes into a box's final
+  // geometry. When any of these change, the {#each} key below recreates the
+  // DOM (wiping the imperatively-set font-size/white-space/line-height) and
+  // `measured` hands out fresh containers, so each box re-measures against the
+  // new metrics on its next hover/touch instead of keeping stale results.
+  let sizingEpoch = $derived(
+    `${$settings.fontSize}|${$settings.textbookFont}|${$settings.boldFont}|${$settings.spreadVerticalText}`
+  );
+  // Per-box measurement results. The containers are mutated (not reassigned)
+  // by the measurement code — mutation isn't reactive, but the final styles
+  // are also applied imperatively, and the reactive `style:font-size` read in
+  // the template picks the stored value up on any later re-render (e.g. a
+  // selection change) instead of clobbering a measured box back to its
+  // original size.
+  let measured = $derived.by(() => {
+    sizingEpoch;
+    return {
+      fontSizes: new Map<number, string>(),
+      processed: new Set<number>()
+    };
+  });
 
   // Calculate optimal font size for a textbox using binary search
   // Two-phase approach: scale up until overflow, then find the goldilocks size
@@ -150,6 +165,15 @@
     // Parse the initial font size to get numeric value
     const match = initialFontSize.match(/(\d+(?:\.\d+)?)(px|pt)/);
     if (!match) return null;
+
+    // Overflow is judged from the text paragraph alone, never the box's own
+    // scroll metrics: the box also hosts absolutely-positioned chrome (the
+    // multi-select order badge at top/left −10px), and in vertical-rl writing
+    // mode negative-offset children count as scrollable overflow — measuring
+    // the box would see permanent overflow and binary-search every selected
+    // vertical box down to the minimum font size.
+    const p = element.querySelector<HTMLParagraphElement>('p');
+    if (!p) return null;
 
     const originalSize = parseFloat(match[1]);
     const unit = match[2];
@@ -166,11 +190,16 @@
       originalInPx = minFontSize;
     }
 
-    // Check if content overflows at a given font size
+    // Check if the text overflows the box at a given font size. offsetWidth/
+    // offsetHeight catch the paragraph's auto (content-sized) axis growing past
+    // the box — its block axis: width in vertical-rl, height in horizontal —
+    // while scrollWidth/scrollHeight catch inline overflow (nowrap text running
+    // past the paragraph's own bounds).
     const isOverflowingAt = (size: number) => {
       element.style.fontSize = `${size}px`;
       return (
-        element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth
+        Math.max(p.offsetWidth, p.scrollWidth) > element.clientWidth ||
+        Math.max(p.offsetHeight, p.scrollHeight) > element.clientHeight
       );
     };
 
@@ -246,21 +275,27 @@
     };
   }
 
-  // Spread vertical text columns to fill the box's full width.
+  // Spread vertical text columns across the box's full width.
   //
   // Runs AFTER the font has been sized against natural (1.1em) spacing, so the
-  // chosen font size is unchanged — we only widen the gaps between the already
-  // laid-out columns to consume the horizontal slack that made the text hug the
-  // right edge. line-height is the column advance in vertical writing modes, so
-  // scaling it by (boxWidth / contentWidth) makes the columns tile the full
-  // width exactly. Measured (not computed from line count) so wrapped columns
-  // are handled correctly. Only ever widens — never compresses.
+  // chosen size is unchanged — this only redistributes the horizontal slack
+  // that otherwise leaves the columns hugging the right edge. line-height is
+  // the column advance in vertical writing modes, but glyphs sit centered in
+  // their advance band (half-leading), so plainly widening it shifts the first
+  // column away from the right edge by half the added leading. Instead the
+  // columns are justified: the advance L solves
+  //     (N-1)·L + natural = boxWidth
+  // and a negative block-start margin of (L - natural)/2 cancels the first
+  // band's half-leading — the first column hugs the right edge, the last hugs
+  // the left, and the gaps in between are equal. Only ever widens, never
+  // compresses.
   function fillVerticalColumns(element: HTMLDivElement) {
     const p = element.querySelector<HTMLParagraphElement>('p');
     if (!p) return;
 
-    // Reset any previous override so we measure the natural column extent.
+    // Reset any previous spread so the natural geometry is measured.
     p.style.lineHeight = '';
+    p.style.marginRight = '';
     const contentWidth = p.offsetWidth; // block axis (horizontal) = columns' span
     const boxWidth = element.clientWidth;
     if (contentWidth <= 0 || boxWidth <= contentWidth) return;
@@ -268,11 +303,23 @@
     // Read the natural column advance straight off the (just-reset) element
     // instead of recomputing it, so this stays in sync with the CSS
     // line-height rather than duplicating its `1.1em` as a magic number.
-    const naturalLineHeight = parseFloat(getComputedStyle(p).lineHeight);
-    if (!Number.isFinite(naturalLineHeight) || naturalLineHeight <= 0) return;
+    const natural = parseFloat(getComputedStyle(p).lineHeight);
+    if (!Number.isFinite(natural) || natural <= 0) return;
 
-    const fillLineHeight = naturalLineHeight * (boxWidth / contentWidth);
-    p.style.lineHeight = `${fillLineHeight}px`;
+    // Column count from the measured extent (so wrapped columns are handled),
+    // not the line count. A single column has no gaps to distribute — leave
+    // it at its natural position rather than centering it in the box.
+    const columns = Math.round(contentWidth / natural);
+    if (columns <= 1) return;
+
+    // Cap the advance so a badly over-sized OCR box can't scatter the columns
+    // into unreadable sparseness; with the cap active the columns simply stop
+    // short of the left edge.
+    const advance = Math.min((boxWidth - natural) / (columns - 1), natural * 2.5);
+    if (advance <= natural) return;
+
+    p.style.lineHeight = `${advance}px`;
+    p.style.marginRight = `${-(advance - natural) / 2}px`;
   }
 
   // Handle hover event to calculate resize on demand (only for auto font sizing)
@@ -281,11 +328,11 @@
 
     const calculate = async () => {
       // Skip if already processed, OCR is hidden, or using manual font size
-      if (processedTextBoxes.has(index) || display !== 'block' || $settings.fontSize !== 'auto')
+      if (measured.processed.has(index) || display !== 'block' || $settings.fontSize !== 'auto')
         return;
 
       // Mark as processed immediately to prevent duplicate calculations
-      processedTextBoxes.add(index);
+      measured.processed.add(index);
 
       // The OCR font (`app.css` @font-face) uses `font-display: swap`, so text
       // is laid out with a FALLBACK font until the self-hosted woff2 finishes
@@ -306,6 +353,10 @@
 
       // Use requestAnimationFrame to ensure the DOM is fully rendered
       requestAnimationFrame(() => {
+        // The box can be unmounted while the font-load above was awaited (page
+        // turn, or a sizing-setting change recreating the DOM). Measuring a
+        // detached element reads 0×0 and would lock in a garbage size.
+        if (!element.isConnected) return;
         const result = calculateOptimalFontSize(element, initialFontSize);
         if (!result) return;
 
@@ -313,7 +364,6 @@
 
         // Apply final settings
         if (useWrapping) {
-          needsWrapping.add(index);
           element.style.whiteSpace = 'normal';
           element.style.wordWrap = 'break-word';
           element.style.overflowWrap = 'break-word';
@@ -325,13 +375,13 @@
 
         element.style.fontSize = `${finalSize}px`;
 
-        // Persist the computed size into the reactive map — even when the box
-        // scaled UP (finalSize >= originalInPx). The imperative write above sets
-        // it now, but `style:font-size={adjustedFontSizes.get(index) || fontSize}`
-        // is re-applied on every `{#each}` re-render (e.g. any selection change),
+        // Persist the computed size — even when the box scaled UP (finalSize
+        // >= originalInPx). The imperative write above sets it now, but
+        // `style:font-size={measured.fontSizes.get(index) || fontSize}` is
+        // re-applied on every `{#each}` re-render (e.g. any selection change),
         // which would otherwise clobber a scaled-up box back to the original,
         // smaller `fontSize`. Storing it here keeps the reactive value in sync.
-        adjustedFontSizes.set(index, `${finalSize}px`);
+        measured.fontSizes.set(index, `${finalSize}px`);
 
         // Spread the columns to fill the width (font size already finalized).
         if (vertical && $settings.spreadVerticalText) fillVerticalColumns(element);
@@ -418,6 +468,10 @@
     return offset;
   }
 
+  // Monotonic tap counter: a lookup that resolves after a newer tap started
+  // must not clobber the newer tap's popup/highlight/mining context.
+  let lookupSeq = 0;
+
   async function handleTextBoxClick(event: MouseEvent, boxId: string, lines: string[]) {
     // Double-click is handled separately by ondblclick (swallowed, no lookup)
     if (event.detail > 1) return;
@@ -438,9 +492,15 @@
       return;
     }
 
+    // Editable-text mode: clicks place the editing caret; a lookup popup (and
+    // its character highlight) fighting the caret would make editing unusable.
+    if (contenteditable) return;
+
     // Tap-to-reveal (step 1): if this box isn't revealed yet, the first tap
-    // only shows its text — no lookup. Hover-capable devices skip this step.
-    const revealed = canHover || alwaysShowOCR || $activeTextBox === boxId;
+    // only shows its text — no lookup. Hover-capable devices skip this step,
+    // as do boxes whose text is already permanently visible (always-show OCR,
+    // placeholder pages).
+    const revealed = canHover || alwaysShowOCR || forceVisible || $activeTextBox === boxId;
     if (!revealed) {
       setActiveTextBox(boxId);
       closePopup();
@@ -484,7 +544,12 @@
     const tappedCharRanges = rangesForSpan(segments, combinedOffset, combinedOffset + tappedLen);
     highlightWord(tappedCharRanges);
 
+    const seq = ++lookupSeq;
     const match = await findBestMatch(combined, combinedOffset);
+    // Superseded while in flight — by a newer tap in this box (seq), a tap in
+    // another box, or a dismissal that cleared the active box. Its outcome
+    // owns the popup/highlight now; drop this one.
+    if (seq !== lookupSeq || $activeTextBox !== boxId) return;
     if (!match) {
       // Close any open popup but keep the tapped character highlighted as
       // feedback (closePopup clears the highlight, so re-apply it after).
@@ -562,7 +627,10 @@
   }
 </script>
 
-{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex, vertical }, index (`${volumeUuid}-textBox-${index}`)}
+<!-- sizingEpoch in the key forces DOM recreation when a sizing setting changes,
+     discarding the imperative font-size/white-space/line-height a previous
+     measurement left inline (there's no other hook to unwind them). -->
+{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex, vertical }, index (`${volumeUuid}-textBox-${index}-${sizingEpoch}`)}
   {@const boxId = `${volumeUuid}-${pageIndex ?? 0}-${index}`}
   {@const selOrder = $selection.findIndex((e) => e.id === boxId) + 1}
   {@const isSelected = selOrder > 0}
@@ -580,7 +648,7 @@
     style:min-height={isOriginalMode ? undefined : useMinDimensions ? height : undefined}
     style:left
     style:top
-    style:font-size={adjustedFontSizes.get(index) || fontSize}
+    style:font-size={measured.fontSizes.get(index) || fontSize}
     style:font-weight={fontWeight}
     style:font-family={ocrFontFamily}
     style:display
@@ -595,7 +663,9 @@
     {contenteditable}
   >
     {#if isSelected}
-      <span class="selectBadge" aria-hidden="true">{selOrder}</span>
+      <!-- contenteditable="false" keeps the badge out of the editing flow when
+           the "editable text" setting places a caret inside the box. -->
+      <span class="selectBadge" contenteditable="false" aria-hidden="true">{selOrder}</span>
     {/if}
     <p>
       {#each lines as line}<span class="ocr-line">{line}</span>{/each}
