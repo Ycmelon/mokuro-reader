@@ -211,6 +211,16 @@ function parseTermMeta(
     if (Array.isArray(data) && data.length === 2 && typeof data[0] === 'string') {
       reading = data[0];
       value = data[1];
+    } else if (
+      data !== null &&
+      typeof data === 'object' &&
+      typeof (data as { reading?: unknown }).reading === 'string' &&
+      'frequency' in (data as object)
+    ) {
+      // Yomitan's reading-scoped shape: { reading, frequency }, where frequency
+      // is itself a number/string/{ value, displayValue }.
+      reading = (data as { reading: string }).reading;
+      value = (data as { frequency: unknown }).frequency;
     }
     let frequency: string;
     let frequencyValue: number;

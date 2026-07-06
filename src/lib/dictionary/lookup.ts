@@ -54,7 +54,14 @@ interface DictionaryEntry {
   sourceTermExactMatchCount: number;
   /** The single inflection chain kept for display (shortest). */
   inflectionPath: string[];
-  /** Max granular frequency across the word's forms (0 without a freq dict). */
+  /** The deinflected forms (writings/readings) that actually reached this word.
+   *  Frequency is scored only over these, mirroring how Yomitan keeps a separate
+   *  entry per matched reading and how 10ten gates priority on `matchRange`: a
+   *  rare reading must not borrow the frequency of a common homograph reading it
+   *  wasn't looked up by (翼 clicked as よく must not inherit つばさ's rank). */
+  matchedForms: Set<string>;
+  /** Max granular frequency across the word's matched headwords (0 without a
+   *  freq dict). */
   freqScore: number;
 }
 
@@ -189,10 +196,13 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
           inflectionChains: [d.inflectionRules],
           sourceTermExactMatchCount: exact,
           inflectionPath: d.inflectionRules,
+          matchedForms: new Set([d.deinflectedText]),
           freqScore: 0
         });
         continue;
       }
+
+      existing.matchedForms.add(d.deinflectedText);
 
       // Yomitan keys the keep/replace/merge decision on transformedText length:
       // a shorter (more lossily preprocessed) spelling never displaces or merges
@@ -462,9 +472,19 @@ async function lookupPitches(writings: Headword[], readings: Headword[]): Promis
 }
 
 /**
- * Fills each entry's `freqScore` with the maximum frequency value across its
- * writings/readings, from an installed frequency dictionary. One bulk query for
- * every form across all entries; a no-op when no term_meta is present.
+ * Fills each entry's `freqScore` from an installed frequency dictionary, scored
+ * over the word's *matched* headwords only.
+ *
+ * Yomitan keeps a separate dictionary entry per reading and attaches frequency
+ * per (term, reading) headword, so a rare reading is ranked by its own frequency,
+ * never a common homograph's. We merge all readings into one entry, so we
+ * reproduce that here: frequency is looked up per (writing, reading) pair and an
+ * entry only counts the pairs whose form was actually looked up. Clicking the
+ * kana よく scores 翼 by (翼, よく) — which carries no frequency — not by its
+ * common つばさ reading, matching Yomitan/10ten. Reading-agnostic freq rows (no
+ * `reading` field) are treated as writing-element scores: they apply to direct
+ * writing matches, and to kana-only entries where the reading is the expression.
+ * One bulk query for every form; a no-op when no term_meta is present.
  */
 async function assignFrequencyScores(entries: DictionaryEntry[]): Promise<void> {
   if (entries.length === 0 || !(await ensureHasTermMeta())) return;
@@ -480,19 +500,47 @@ async function assignFrequencyScores(entries: DictionaryEntry[]): Promise<void> 
     .where('expression')
     .anyOf([...texts])
     .toArray();
-  const byText = new Map<string, number>();
+
+  // Frequency keyed by (expression, reading); reading-agnostic rows land under
+  // `writingFreq` and only apply when that expression itself was matched.
+  const pairFreq = new Map<string, Map<string, number>>();
+  const writingFreq = new Map<string, number>();
   for (const row of rows) {
     if (row.mode !== 'freq' || typeof row.frequencyValue !== 'number') continue;
-    if (row.frequencyValue > (byText.get(row.expression) ?? 0)) {
-      byText.set(row.expression, row.frequencyValue);
+    if (typeof row.reading === 'string' && row.reading.length > 0) {
+      let byReading = pairFreq.get(row.expression);
+      if (!byReading) pairFreq.set(row.expression, (byReading = new Map()));
+      if (row.frequencyValue > (byReading.get(row.reading) ?? 0)) {
+        byReading.set(row.reading, row.frequencyValue);
+      }
+    } else if (row.frequencyValue > (writingFreq.get(row.expression) ?? 0)) {
+      writingFreq.set(row.expression, row.frequencyValue);
     }
   }
-  if (byText.size === 0) return;
+  if (pairFreq.size === 0 && writingFreq.size === 0) return;
 
   for (const e of entries) {
+    const writings = e.term.writings.map((w) => w.text);
+    const readings = new Set(e.term.readings.map((r) => r.text));
+    // Reading-scoped rows are keyed by the written form; kana-only words key by
+    // the reading itself.
+    const keys = writings.length > 0 ? writings : [...readings];
+
     let max = 0;
-    for (const w of e.term.writings) max = Math.max(max, byText.get(w.text) ?? 0);
-    for (const r of e.term.readings) max = Math.max(max, byText.get(r.text) ?? 0);
+    for (const form of e.matchedForms) {
+      if (readings.has(form)) {
+        // Matched via a reading: score that reading against each written key.
+        for (const key of keys) {
+          max = Math.max(max, pairFreq.get(key)?.get(form) ?? 0);
+          if (writings.length === 0 && key === form) {
+            max = Math.max(max, writingFreq.get(key) ?? 0);
+          }
+        }
+      } else {
+        // Matched via a writing (kanji lookup): score the writing element only.
+        max = Math.max(max, writingFreq.get(form) ?? 0);
+      }
+    }
     e.freqScore = max;
   }
 }

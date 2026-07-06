@@ -112,10 +112,18 @@ beforeAll(async () => {
       score: 1
     }),
     word({ sequence: 7001, writings: [hw('頭')], readings: [hw('とう')], score: 1 }),
-    // よく: clicking the kana, the adverb 良く (よく is its common reading) must
-    // outrank the rare よく reading of 翼 (whose common reading is つばさ).
+    // よく: clicking the kana, the frequent readings 欲・よく (greed) and 良く・よく
+    // (well) must outrank the rare よく reading of 翼 (whose common reading is
+    // つばさ). Frequency is scored per matched (writing, reading), so 翼 can't
+    // borrow つばさ's rank — matching Yomitan/10ten.
     word({
       sequence: 8000,
+      writings: [hw('欲', { priority: true })],
+      readings: [hw('よく')],
+      score: 1
+    }),
+    word({
+      sequence: 8001,
       writings: [hw('良く', { priority: true })],
       readings: [hw('よく', { priority: true })],
       score: 1
@@ -153,11 +161,51 @@ beforeAll(async () => {
   const meta: StoredTermMeta[] = [
     { dictionaryId: 1, expression: '見る', reading: 'みる', mode: 'pitch', positions: [1] },
     { dictionaryId: 1, expression: 'みる', reading: 'みる', mode: 'pitch', positions: [1] },
-    // Frequency scores: 分かる is far more common than 分かつ.
-    { dictionaryId: 1, expression: '分かる', mode: 'freq', frequency: '53', frequencyValue: 53.05 },
-    { dictionaryId: 1, expression: 'わかる', mode: 'freq', frequency: '53', frequencyValue: 53.51 },
-    { dictionaryId: 1, expression: '分かつ', mode: 'freq', frequency: '45', frequencyValue: 45.5 },
-    { dictionaryId: 1, expression: 'わかつ', mode: 'freq', frequency: '45', frequencyValue: 45.5 }
+    // Frequency scores: 分かる is far more common than 分かつ. Reading-scoped, the
+    // way the bundled dict (and Yomitan) key them: per (writing, reading).
+    {
+      dictionaryId: 1,
+      expression: '分かる',
+      reading: 'わかる',
+      mode: 'freq',
+      frequency: '53',
+      frequencyValue: 53.51
+    },
+    {
+      dictionaryId: 1,
+      expression: '分かつ',
+      reading: 'わかつ',
+      mode: 'freq',
+      frequency: '45',
+      frequencyValue: 45.5
+    },
+    // Production frequency data (JMdict/10ten priority) for the よく case, keyed
+    // per (writing, reading). 翼 has only a つばさ row — no よく row at all — so
+    // clicking よく scores it 0, while 欲 and 良く carry their own よく frequency.
+    {
+      dictionaryId: 1,
+      expression: '欲',
+      reading: 'よく',
+      mode: 'freq',
+      frequency: '54',
+      frequencyValue: 54.65
+    },
+    {
+      dictionaryId: 1,
+      expression: '良く',
+      reading: 'よく',
+      mode: 'freq',
+      frequency: '34',
+      frequencyValue: 34.0
+    },
+    {
+      dictionaryId: 1,
+      expression: '翼',
+      reading: 'つばさ',
+      mode: 'freq',
+      frequency: '54',
+      frequencyValue: 54.7
+    }
   ];
   await dictDb.termMeta.bulkAdd(meta);
   invalidateTermMetaCache();
@@ -199,10 +247,14 @@ describe('findBestMatch', () => {
     expect(readings.indexOf('あたま')).toBeLessThan(readings.indexOf('とう'));
   });
 
-  it('scores the matched reading, not the entry (よく: 良く > 翼)', async () => {
+  it('scores the matched reading, not the entry (よく: 欲 > 良く > 翼)', async () => {
     const res = await findBestMatch('よく', 0);
     const exprs = res!.state.results.map((r) => r.expression);
+    // 翼's よく reading carries no frequency of its own, so it ranks below the
+    // words whose よく reading is common — it must not borrow つばさ's rank.
+    expect(exprs.indexOf('欲')).toBeLessThan(exprs.indexOf('翼'));
     expect(exprs.indexOf('良く')).toBeLessThan(exprs.indexOf('翼'));
+    expect(exprs.indexOf('欲')).toBeLessThan(exprs.indexOf('良く'));
   });
 
   it('lets full emphatic collapse extend the match, longest wins (Yomitan)', async () => {

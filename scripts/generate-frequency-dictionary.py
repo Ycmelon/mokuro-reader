@@ -6,11 +6,29 @@ into a single "★ priority form" tag, which loses the information needed to ran
 say, 分かる above 分かつ (both merely "★" in Jitendex). 10ten keeps the granular
 markers and folds them into a numeric priority score; we replicate that here.
 
-For every kanji/kana headword we compute 10ten's priority sum (see
-word-match-sorting.ts: getPriorityScore / getPrioritySum) from words.ljson's `p`
-markers and emit it as a Yomitan v3 term_meta "freq" row keyed by the headword.
-The reader uses the per-entry maximum of these as a sort key, so common words win
-ties that Jitendex's flat score cannot.
+Faithful to Yomitan/10ten, priority is scored **per reading element** and keyed
+per (writing, reading) headword — not per bare string. This matters for shared
+readings: よく is the common reading of 欲 (greed) and 良く (well), but a *rare*
+reading of 翼 (whose common reading is つばさ). A per-string max would let 翼
+borrow 54.7 from its つばさ reading and outrank 良く when the kana よく is clicked
+(both Yomitan and 10ten rank 良く above 翼 there). Emitting the reading's own
+priority against each of its writings — and *nothing* for 翼/よく, which carries
+no markers — reproduces their ordering: the reader looks up freq by the matched
+(writing, reading) pair, so 翼-via-よく scores 0.
+
+Each row is Yomitan's reading-scoped freq shape:
+
+    [writing, "freq", {"reading": reading, "frequency": score}]
+
+Writing elements with their own priority markers are also emitted as bare
+frequency rows:
+
+    [writing, "freq", score]
+
+The reader only applies those rows when the writing itself was matched. For
+kana-only words (no kanji, or a `nokanji` reading) the writing is the reading
+itself. Reading→kanji restrictions (10ten's `app` bitmask) are respected so a
+reading is only paired with the kanji it actually applies to.
 
 Usage: clone https://github.com/birchill/10ten-ja-reader next to this repo (or
 point SRC at its data/words.ljson) and run
@@ -53,18 +71,38 @@ def priority_sum(markers):
     return total
 
 
-# Aggregate the maximum priority sum seen for each headword string.
-best = {}
+# Aggregate maximum priority per matched headword element. `best_pairs` carries
+# reading-element priority for (writing, reading) matches; `best_writings`
+# carries kanji/writing-element priority for direct writing matches.
+best_pairs = {}
+best_writings = {}
 
 
-def consider(text, markers):
-    if not text or not markers:
+def consider_pair(expression, reading, value):
+    if not expression or value <= 0:
         return
-    v = priority_sum(markers)
-    if v <= 0:
+    key = (expression, reading)
+    if value > best_pairs.get(key, 0):
+        best_pairs[key] = value
+
+
+def consider_writing(expression, value):
+    if not expression or value <= 0:
         return
-    if v > best.get(text, 0):
-        best[text] = v
+    if value > best_writings.get(expression, 0):
+        best_writings[expression] = value
+
+
+def applicable_kanji(kanji, app):
+    """Kanji a reading applies to, honouring 10ten's `app` restriction bitmask.
+
+    Absent → every kanji; 0 → nokanji (kana-only usage); otherwise a bitmask of
+    kanji indices (bit j set ⇒ the j-th kanji)."""
+    if app is None:
+        return list(kanji)
+    if app == 0:
+        return []
+    return [k for j, k in enumerate(kanji) if app & (1 << j)]
 
 
 with open(SRC, encoding='utf-8') as f:
@@ -73,15 +111,36 @@ with open(SRC, encoding='utf-8') as f:
             e = json.loads(line)
         except json.JSONDecodeError:
             continue
-        for arr, metas in (('k', 'km'), ('r', 'rm')):
-            heads = e.get(arr) or []
-            metalist = e.get(metas) or []
-            for i, head in enumerate(heads):
-                m = metalist[i] if i < len(metalist) and isinstance(metalist[i], dict) else {}
-                consider(head, m.get('p'))
+        kanji = e.get('k') or []
+        kmeta = e.get('km') or []
+        for i, writing in enumerate(kanji):
+            m = kmeta[i] if i < len(kmeta) and isinstance(kmeta[i], dict) else {}
+            consider_writing(writing, priority_sum(m.get('p') or []))
+
+        readings = e.get('r') or []
+        rmeta = e.get('rm') or []
+        for i, reading in enumerate(readings):
+            m = rmeta[i] if i < len(rmeta) and isinstance(rmeta[i], dict) else {}
+            value = priority_sum(m.get('p') or [])
+            if value <= 0:
+                continue
+            targets = applicable_kanji(kanji, m.get('app')) if kanji else []
+            if targets:
+                for k in targets:
+                    consider_pair(k, reading, value)
+            else:
+                # Kana-only word, or a nokanji reading: key by the reading.
+                consider_pair(reading, reading, value)
 
 # Round to 2 dp to keep the file compact; ordering is preserved.
-rows = [[text, 'freq', round(value, 2)] for text, value in best.items()]
+rows = [
+    [expression, 'freq', {'reading': reading, 'frequency': round(value, 2)}]
+    for (expression, reading), value in best_pairs.items()
+]
+rows.extend(
+    [expression, 'freq', round(value, 2)]
+    for expression, value in best_writings.items()
+)
 
 date = datetime.date.today().isoformat()
 index = {
@@ -90,8 +149,9 @@ index = {
     'revision': f'freq-{date}',
     'sequenced': False,
     'author': 'Generated from JMdict/10ten priority data',
-    'description': "Priority scores derived from JMdict's ichi/news/spec/wordfreq markers "
-    '(via the 10ten dataset), used to rank common words first.',
+    'description': "Per-reading priority scores derived from JMdict's ichi/news/spec/wordfreq "
+    'markers (via the 10ten dataset), keyed per (writing, reading) headword so a rare reading '
+    "cannot inherit a common homograph's frequency. Used to rank common words first.",
     'sourceLanguage': 'ja',
     'targetLanguage': 'en',
 }
