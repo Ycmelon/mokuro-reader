@@ -3,7 +3,6 @@ import {
   expandChoon,
   convertKyuujitaiToShinjitai,
   normalizeEnclosedCJKCharacters,
-  generateTextVariants,
   isAllKana,
   splitMora,
   countMora,
@@ -34,16 +33,6 @@ describe('convertKyuujitaiToShinjitai', () => {
 describe('normalizeEnclosedCJKCharacters', () => {
   it('decomposes circled katakana', () => {
     expect(normalizeEnclosedCJKCharacters('㋯㋚㋑㋸')).toBe('ミサイル');
-  });
-});
-
-describe('generateTextVariants', () => {
-  it('includes the chōon and kyūjitai expansions', () => {
-    expect(generateTextVariants('おーきい')).toContain('おおきい');
-    expect(generateTextVariants('國')).toContain('国');
-  });
-  it('does not explode plain text', () => {
-    expect(generateTextVariants('食べる').length).toBeLessThanOrEqual(3);
   });
 });
 

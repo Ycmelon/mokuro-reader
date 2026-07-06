@@ -1,66 +1,54 @@
-export type StructuredContentStyle = {
-  fontStyle?: string;
-  fontWeight?: string;
-  fontSize?: string;
-  color?: string;
-  background?: string;
-  backgroundColor?: string;
-  verticalAlign?: string;
-  textAlign?: string;
-  textEmphasis?: string;
-  textShadow?: string;
-  textDecorationLine?: string | string[];
-  textDecorationStyle?: string;
-  textDecorationColor?: string;
-  borderColor?: string;
-  borderStyle?: string;
-  borderRadius?: string;
-  borderWidth?: string;
-  clipPath?: string;
-  margin?: string;
-  marginTop?: number | string;
-  marginLeft?: number | string;
-  marginRight?: number | string;
-  marginBottom?: number | string;
-  padding?: string;
-  paddingTop?: string;
-  paddingLeft?: string;
-  paddingRight?: string;
-  paddingBottom?: string;
-  wordBreak?: string;
-  whiteSpace?: string;
-  cursor?: string;
-  listStyleType?: string;
-};
+// ── jmdict-simplified sense model ────────────────────────────────────────────
+// Fields are kept separated (part-of-speech, misc/field/dialect tags, glosses,
+// notes, cross-references, language source) so the popup can lay entries out in
+// the 10ten style — POS-grouped, numbered, tagged — rather than rendering an
+// opaque display blob.
 
-export type StructuredContent =
-  | string
-  | StructuredContent[]
-  | StructuredContentWrapper
-  | StructuredContentNode;
-
-export interface StructuredContentWrapper {
-  type: 'structured-content';
-  content: StructuredContent;
+/** One English gloss. `type` carries JMdict's g_type (literal/figurative/
+ *  explanation/trademark) when present. */
+export interface Gloss {
+  text: string;
+  type?: 'literal' | 'figurative' | 'explanation' | 'trademark';
 }
 
-export interface StructuredContentNode {
-  tag: string;
-  content?: StructuredContent;
-  style?: StructuredContentStyle;
-  data?: Record<string, string>;
+/** A loanword's source language (JMdict lsource). */
+export interface LangSource {
+  /** ISO-639 language code of the source (e.g. 'fre'); defaults to English. */
   lang?: string;
-  title?: string;
-  // table cells
-  colSpan?: number;
-  rowSpan?: number;
-  // details
-  open?: boolean;
-  // anchor
-  href?: string;
+  /** The source-language word, when given. */
+  text?: string;
+  /** 和製 — a Japanese-made pseudo-loan (wasei). */
+  wasei?: boolean;
 }
 
-export type Definition = string | StructuredContentWrapper;
+/** A bilingual example sentence. Empty until a Tatoeba pass attaches them by
+ *  JMdict sequence; the popup renders nothing when absent. */
+export interface Example {
+  japanese: string;
+  english: string;
+}
+
+/** One sense of an entry — a group of glosses sharing part-of-speech and tags. */
+export interface Sense {
+  /** Part-of-speech codes (JMdict entities, e.g. 'v5r', 'n', 'adj-i'). */
+  pos: string[];
+  /** Field-of-application tags (e.g. 'comp', 'med'). */
+  field: string[];
+  /** Miscellaneous tags (e.g. 'uk', 'col', 'hon'). */
+  misc: string[];
+  /** Dialect tags (e.g. 'ksb'). */
+  dialect: string[];
+  /** Sense-level notes (JMdict s_inf). */
+  info: string[];
+  /** English glosses, in order. */
+  glosses: Gloss[];
+  /** Cross-reference terms (first element of each JMdict xref/ant). */
+  xref: string[];
+  /** Loanword source(s), when the sense is a borrowing. */
+  langSource: LangSource[];
+  /** Bilingual examples (Tatoeba). Empty until the examples pass runs. */
+  examples: Example[];
+}
 
 export interface DictionaryMeta {
   id?: number;
@@ -85,27 +73,42 @@ export interface StoredTag {
   score: number;
 }
 
+/** One stored dictionary word (a whole JMdict entry). Unlike the old Yomitan
+ *  per-(expression,reading) rows, a word already carries every writing, reading
+ *  and sense, so lookup no longer re-merges by sequence. Indexed by `keys` (a
+ *  multiEntry index over every writing + reading text). */
 export interface StoredTerm {
   id?: number;
   dictionaryId: number;
-  expression: string;
-  reading: string;
-  definitionTags: string;
-  rules: string;
-  score: number;
-  definitions: Definition[];
+  /** JMdict entry id — stable across builds, used to attach examples/meta. */
   sequence: number;
-  termTags: string;
+  /** Every writing + reading text, for the multiEntry lookup index. */
+  keys: string[];
+  /** Kanji forms (empty for kana-only words), primary first. */
+  writings: Headword[];
+  /** Kana forms, primary first. */
+  readings: Headword[];
+  /** Space-joined deinflection rule tokens (subset of v1 v5 vk vs vz adj-i),
+   *  the union across the word's senses. Empty for non-inflecting words. */
+  rules: string;
+  /** Ranking score (higher = more common). */
+  score: number;
+  senses: Sense[];
 }
 
-/** A single writing or reading of a merged entry, with display hints derived
- *  from the dictionary's headword tags. */
+/** A single writing or reading of an entry, with display hints derived from the
+ *  dictionary's headword tags. */
 export interface Headword {
   text: string;
   /** Rare/old/irregular/obsolete form — rendered de-emphasized. */
   obscure: boolean;
+  /** Search-only form (JMdict sK/sk): a lookup alias never meant for display.
+   *  Kept in the term's `keys` index so it still resolves, but not rendered. */
+  hidden: boolean;
   /** Priority (common) spelling or reading — carries a star. */
   priority: boolean;
+  /** Raw JMdict info tags (iK, ik, oK, ok, rK, rk, sK, sk, io…) for tooltips. */
+  info: string[];
 }
 
 /** Pitch-accent data for one reading. Each position is the mora index of the
@@ -131,15 +134,16 @@ export interface StoredTermMeta {
 }
 
 export interface LookupResult {
-  /** Primary writing (first non-obscure, highest-scoring of the merged entry). */
+  /** Primary writing (first non-obscure). */
   expression: string;
   /** Primary reading. */
   reading: string;
-  /** All kanji writings of the entry (same JMdict sequence), primary first. */
+  /** All kanji writings of the entry, primary first. */
   writings: Headword[];
   /** All kana readings of the entry, primary first. */
   readings: Headword[];
-  definitions: Definition[];
+  /** Separated senses (POS/tags/glosses), for 10ten-style layout. */
+  senses: Sense[];
   dictionaryTitle: string;
   score: number;
   /** The entry as a whole is a high-priority (common) word. */

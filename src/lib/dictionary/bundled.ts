@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
 import { dictDb } from './db';
-import { importYomitanDictionary } from './import';
+import { importJmdictDictionary, importTermMetaDictionary } from './import';
 import { invalidateTermMetaCache } from './lookup';
 
 /**
@@ -19,23 +19,33 @@ export interface BundledDictionary {
    * already been imported (titles carry a volatile date suffix).
    */
   titlePrefix: string;
+  /** Which importer to run: the jmdict term dictionary or a Yomitan term_meta
+   *  (pitch/frequency) dictionary. */
+  kind: 'jmdict' | 'termmeta';
 }
 
 export const BUNDLED_DICTIONARIES: BundledDictionary[] = [
-  { label: 'Jitendex', filename: 'jitendex-yomitan.zip', titlePrefix: 'Jitendex' },
+  {
+    label: 'Dictionary',
+    filename: 'jmdict.zip',
+    titlePrefix: 'JMdict (simplified)',
+    kind: 'jmdict'
+  },
   {
     label: 'Pitch Accents',
     filename: 'pitch-accents.zip',
-    titlePrefix: 'JMdict Pitch Accents'
+    titlePrefix: 'JMdict Pitch Accents',
+    kind: 'termmeta'
   },
   {
     label: 'Frequencies',
     filename: 'frequency.zip',
-    titlePrefix: 'JMdict Frequencies'
+    titlePrefix: 'JMdict Frequencies',
+    kind: 'termmeta'
   }
 ];
 
-export type BundledDictState = 'idle' | 'downloading' | 'importing' | 'ready' | 'error';
+export type BundledDictState = 'idle' | 'queued' | 'downloading' | 'importing' | 'ready' | 'error';
 
 export interface BundledDictStatus {
   label: string;
@@ -71,13 +81,22 @@ const inFlight = new Map<string, Promise<void>>();
  */
 export async function ensureBundledDictionaries(): Promise<void> {
   // Ask the browser not to evict our IndexedDB data under storage pressure.
+  // Fire-and-forget: awaiting persist() can stall for several seconds in some
+  // browsers, which would delay the first download and leave every row queued.
   if (navigator.storage?.persist) {
-    try {
-      await navigator.storage.persist();
-    } catch {
+    navigator.storage.persist().catch(() => {
       /* best effort */
-    }
+    });
   }
+
+  // Mark everything not already confirmed ready as "queued" up front, so a
+  // dictionary waiting its turn behind another download reads as queued rather
+  // than sitting on a silent, indistinguishable "Waiting…".
+  bundledDictStatuses.update((list) =>
+    list.map((s) =>
+      s.state === 'ready' ? s : { ...s, state: 'queued', progress: 0, message: 'Waiting to start…' }
+    )
+  );
 
   for (const dict of BUNDLED_DICTIONARIES) {
     await ensureOne(dict).catch((err) => {
@@ -120,7 +139,7 @@ export async function redownloadBundledDictionary(label: string): Promise<void> 
     entryCount: 0
   });
   await deleteByPrefix(dict.titlePrefix);
-  setStatus(label, { state: 'idle', progress: 0, message: '', entryCount: 0 });
+  // Hand straight off to the loader (which re-messages) — no 'idle' flash.
   return ensureOne(dict);
 }
 
@@ -181,6 +200,9 @@ async function verifyHealthy(titlePrefix: string): Promise<number | null> {
 }
 
 async function loadDictionary(dict: BundledDictionary): Promise<void> {
+  // Surface the health-check phase so the row doesn't sit silently on "queued"
+  // while the DB opens and the existing-data check runs.
+  setStatus(dict.label, { state: 'importing', progress: 0, message: 'Checking existing data…' });
   const healthyCount = await verifyHealthy(dict.titlePrefix);
   if (healthyCount !== null) {
     setStatus(dict.label, {
@@ -195,6 +217,9 @@ async function loadDictionary(dict: BundledDictionary): Promise<void> {
   // Either never imported or a corrupt/partial import — start clean and (re)fetch.
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // deleteByPrefix can churn through hundreds of thousands of rows on a
+    // re-import; message it so the row doesn't look frozen.
+    setStatus(dict.label, { state: 'importing', progress: 0, message: 'Preparing…' });
     await deleteByPrefix(dict.titlePrefix);
     try {
       setStatus(dict.label, {
@@ -214,7 +239,8 @@ async function loadDictionary(dict: BundledDictionary): Promise<void> {
 
       setStatus(dict.label, { state: 'importing', progress: 0, message: 'Reading dictionary…' });
 
-      await importYomitanDictionary(blob, (pct, message) => {
+      const importer = dict.kind === 'jmdict' ? importJmdictDictionary : importTermMetaDictionary;
+      await importer(blob, (pct, message) => {
         setStatus(dict.label, { state: 'importing', progress: pct, message });
       });
 

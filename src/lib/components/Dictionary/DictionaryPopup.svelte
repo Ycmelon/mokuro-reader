@@ -6,11 +6,11 @@
     activeTextBox,
     clearActiveTextBox,
     clearWordHighlight,
-    lookupReference,
     popupGoBack
   } from '$lib/dictionary/lookup';
-  import StructuredContent from './StructuredContent.svelte';
+  import Definitions from './Definitions.svelte';
   import PitchAccent from './PitchAccent.svelte';
+  import Star from './Star.svelte';
   import { miscSettings, settings } from '$lib/settings';
   import { CreditCardPlusAltOutline } from 'flowbite-svelte-icons';
   import { startMining } from '$lib/anki-server/mining';
@@ -50,24 +50,6 @@
       : 'var(--font-sans, sans-serif)'
   );
 
-  // Cross-reference links inside definitions look like
-  // `?query=<encoded-term>&wildcards=off&...`. Intercept them and look the
-  // referenced entry up instead of navigating the browser. External links
-  // (full http(s) URLs) are left to open normally.
-  function handlePopupClick(e: MouseEvent) {
-    const anchor = (e.target as Element | null)?.closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href') ?? '';
-    if (!href.startsWith('?')) return; // external link — let it open
-    e.preventDefault();
-    const match = href.match(/[?&]query=([^&]+)/);
-    if (match) {
-      const term = decodeURIComponent(match[1]);
-      lookupReference(term);
-      popupEl?.scrollTo({ top: 0 });
-    }
-  }
-
   /**
    * Staged dismiss (mobile flow):
    *  - tap inside the definition panel        → ignore
@@ -98,12 +80,6 @@
 <svelte:document onmousedown={handleDocumentMousedown} />
 
 {#if popup}
-  <!-- Inject the dictionary's own styles.css, scoped to .dict-definitions -->
-  {@html `<style>${popup.css}</style>`}
-
-  <!-- Click is delegated to the <a> cross-reference links inside, which are
-       themselves keyboard-accessible (Enter fires a click). -->
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     bind:this={popupEl}
     class="dict-popup"
@@ -113,7 +89,6 @@
     role="dialog"
     aria-label="Dictionary lookup"
     tabindex="-1"
-    onclick={handlePopupClick}
   >
     {#if canGoBack}
       <button class="dict-back" aria-label="Back" onclick={popupGoBack}>‹ Back</button>
@@ -136,64 +111,49 @@
     {/if}
 
     {#each popup.results as result}
-      <!-- Kana-only words have no distinct kanji writing: the readings become the
-           primary (large) headword, so we don't also repeat them in 【】. -->
-      {@const primary = result.writings.length > 0 ? result.writings : result.readings}
-      {@const showReadingLine = result.writings.length > 0}
+      <!-- Search-only forms (JMdict sK/sk) are lookup aliases only; they stay in
+           the term's keys index but are never displayed. -->
+      {@const writings = result.writings.filter((w) => !w.hidden)}
+      {@const readings = result.readings.filter((r) => !r.hidden)}
+      <!-- A word marked 'uk' (usually written in kana) has a kana form that is a
+           real spelling, not just a reading gloss — render it at the kanji size.
+           Without 'uk', the kana only supplies the reading and stays small. -->
+      {@const usuallyKana = writings.length > 0 && result.senses.some((s) => s.misc.includes('uk'))}
       <div class="dict-entry">
         <div class="dict-headword">
-          <span class="dict-expression">
-            {#each primary as hw, i}
-              {#if i > 0}<span class="dict-sep">・</span>{/if}<span
-                class="dict-writing"
-                class:obscure={hw.obscure}
-                >{#if !showReadingLine && pitchMode !== 'none'}{@const pitch = pitchFor(
-                    result,
-                    hw.text
-                  )}{#if pitch}<PitchAccent
-                      reading={hw.text}
-                      position={pitch.positions[0]}
-                      mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
-                    />{#each pitch.positions.slice(1) as p}<span class="dict-pitch-alt">[{p}]</span
-                      >{/each}{:else}{hw.text}{/if}{:else}{hw.text}{/if}{#if hw.priority}<span
-                    class="dict-star">★</span
-                  >{/if}</span
-              >
-            {/each}
-          </span>
-
-          {#if showReadingLine}
-            <span class="dict-reading"
-              >【{#each result.readings as r, i}{#if i > 0}<span class="dict-sep">・</span
-                  >{/if}{@const pitch =
-                  pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
-                  class="dict-reading-item"
-                  class:obscure={r.obscure}
-                  >{#if pitch}<PitchAccent
-                      reading={r.text}
-                      position={pitch.positions[0]}
-                      mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
-                    />{#each pitch.positions.slice(1) as p}<span class="dict-pitch-alt">[{p}]</span
-                      >{/each}{:else}{r.text}{/if}</span
-                >{/each}】</span
+          {#if writings.length > 0}
+            <span class="dict-kanji"
+              >{#each writings as w, i}{#if i > 0}<span class="dict-sep">、</span>{/if}<span
+                  class="dict-writing"
+                  class:obscure={w.obscure}
+                  >{w.text}{#if w.priority}<Star />{/if}</span
+                >{/each}</span
             >
           {/if}
 
+          <span
+            class="dict-reading"
+            class:kana-headword={writings.length === 0}
+            class:usually-kana={usuallyKana}
+            >{#each readings as r, i}{#if i > 0}<span class="dict-sep">、</span>{/if}{@const pitch =
+                pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
+                class="dict-reading-item"
+                class:obscure={r.obscure}
+                >{#if pitch}<PitchAccent
+                    reading={r.text}
+                    position={pitch.positions[0]}
+                    mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
+                  />{:else}{r.text}{/if}{#if r.priority}<Star />{/if}</span
+              >{/each}</span
+          >
+
           {#if result.inflectionPath.length > 0}
-            <span class="dict-inflection">{result.inflectionPath.join(' › ')}</span>
+            <span class="dict-inflection">({result.inflectionPath.join(' › ')})</span>
           {/if}
         </div>
 
-        <div class="dict-definitions">
-          {#each result.definitions as def}
-            <div class="dict-def">
-              {#if typeof def === 'string'}
-                {def}
-              {:else}
-                <StructuredContent content={def} />
-              {/if}
-            </div>
-          {/each}
+        <div class="dict-senses">
+          <Definitions senses={result.senses} />
         </div>
       </div>
     {/each}
@@ -265,17 +225,6 @@
     background: var(--color-gray-600);
   }
 
-  /* Cross-reference links inside definitions */
-  .dict-definitions :global(a[href^='?']) {
-    color: var(--color-primary-400);
-    cursor: pointer;
-    text-decoration: none;
-  }
-
-  .dict-definitions :global(a[href^='?']:hover) {
-    text-decoration: underline;
-  }
-
   /* Header mine button — one per lookup. Sticky + floated right so it sits just
      left of the sticky close button without displacing the headword; z-index
      keeps it above the close button's stacking neighbours. */
@@ -310,74 +259,70 @@
     border-bottom: none;
   }
 
+  /* Inline flow (not flexbox) so wrapped lines share one uniform row height.
+     A wrapping flex row's height tracks its contents, so a line carrying a
+     pitch-accent graph/overline grew taller than a plain line — the uneven
+     spacing. A fixed line-height makes every wrapped row identical and leaves
+     headroom above the kana for the pitch marks. */
   .dict-headword {
     margin-bottom: 4px;
+    line-height: 30px;
+    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
   }
 
-  .dict-expression {
+  /* Kanji headwords: the primary word, in the popup's default (near-white) text
+     colour so the first line stays uncluttered. */
+  .dict-kanji {
     font-size: 20px;
-    font-weight: 700;
-    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
+    color: var(--color-gray-50);
+  }
+
+  /* Readings sit quietly in grey beside the word — this is the "reading only"
+     case, where the kana just tells you how to pronounce the kanji. The left
+     margin separates the kana group from the word group (matches 10ten). */
+  .dict-reading {
+    font-size: 18px;
+    color: var(--color-gray-400);
+    margin-left: 16px;
+  }
+
+  /* A kana-only headword is the primary word; a 'uk' (usually-kana) word has a
+     kanji form but is genuinely written in kana. Both are real spellings, so
+     they take the near-white colour and the same size as the kanji headword. */
+  .dict-reading.kana-headword,
+  .dict-reading.usually-kana {
+    font-size: 20px;
+    color: var(--color-gray-50);
+  }
+
+  /* A kana-only headword leads the line, so it takes no separating indent. */
+  .dict-reading.kana-headword {
+    margin-left: 0;
   }
 
   /* Rare/old/irregular forms are de-emphasized so the standard form reads first. */
-  .dict-writing.obscure {
-    color: var(--color-gray-500);
-    font-weight: 400;
-    font-size: 16px;
+  .dict-writing.obscure,
+  .dict-reading-item.obscure {
+    opacity: 0.55;
   }
 
   .dict-sep {
-    color: var(--color-gray-500);
+    opacity: 0.6;
   }
 
-  /* Priority (common) marker on a writing/reading. */
-  .dict-star {
-    color: var(--color-yellow-400);
-    font-size: 11px;
-    vertical-align: super;
-    margin-left: 1px;
-  }
-
-  .dict-reading {
-    font-size: 13px;
-    color: var(--color-gray-400);
-    margin-left: 4px;
-    font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
-  }
-
-  .dict-reading-item.obscure {
-    color: var(--color-gray-500);
-  }
-
-  /* Additional accent positions for a reading with more than one pattern. */
-  .dict-pitch-alt {
-    font-size: 11px;
-    color: var(--color-primary-400);
-    margin-left: 2px;
-    vertical-align: super;
-  }
-
-  /* Deinflection trace — not part of the dictionary, kept minimal/neutral */
+  /* Deinflection trace — quiet grey, no italics. */
   .dict-inflection {
-    display: inline-block;
-    margin-left: 6px;
-    font-size: 11px;
-    color: var(--color-primary-400);
-    font-style: italic;
+    font-size: 12px;
+    color: var(--color-gray-400);
+    margin-left: 16px;
   }
 
-  .dict-definitions {
+  .dict-senses {
     font-size: 13px;
-    /* Japanese text in definitions and example sentences uses the textbook
-       font (restricted to Japanese codepoints via unicode-range in app.css);
-       English glosses fall through to the app's normal default font. The
-       textbook font is dropped when the textbookFont setting is off. */
+    /* Japanese text in glosses and notes uses the textbook font (restricted to
+       Japanese codepoints via unicode-range in app.css); English glosses fall
+       through to the app's default font. */
     font-family: var(--dict-definition-font, 'UD Digi Kyokasho', var(--font-sans, sans-serif));
-  }
-
-  .dict-def {
-    margin-bottom: 2px;
   }
 
   .dict-no-results {

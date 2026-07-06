@@ -6,7 +6,8 @@
     Label,
     Progressbar,
     Range,
-    Select
+    Select,
+    Spinner
   } from 'flowbite-svelte';
   import {
     bundledDictStatuses,
@@ -65,8 +66,16 @@
           </div>
         {:else if status.state === 'error'}
           <Helper color="red" class="text-xs">{status.message || 'Download failed.'}</Helper>
+        {:else if status.state === 'queued'}
+          <div class="mt-1 flex items-center gap-2">
+            <Spinner size="4" />
+            <Helper class="text-xs">Queued — waiting for another dictionary to finish…</Helper>
+          </div>
         {:else}
-          <Helper class="text-xs">Waiting…</Helper>
+          <div class="mt-1 flex items-center gap-2">
+            <Spinner size="4" />
+            <Helper class="text-xs">Preparing…</Helper>
+          </div>
         {/if}
       </div>
     {/each}
