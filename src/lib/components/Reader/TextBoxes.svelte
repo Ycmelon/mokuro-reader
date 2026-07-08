@@ -1,19 +1,13 @@
 <script lang="ts">
   import { clamp } from '$lib/util';
-  import { selection, selectMode, toggleSelection } from '$lib/reader/text-selection';
+  import {
+    enterSelectMode,
+    selection,
+    selectMode,
+    toggleSelection
+  } from '$lib/reader/text-selection';
   import type { Page } from '$lib/types';
   import { settings, volumes, imageFilter } from '$lib/settings';
-  import { expandTextBoxBounds } from '$lib/anki-connect';
-
-  interface ContextMenuData {
-    x: number;
-    y: number;
-    lines: string[];
-    imgElement: HTMLElement | null;
-    textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
-    pageIndex?: number;
-    boxId?: string; // Identity of the box, for seeding multi-select
-  }
 
   interface Props {
     page: Page;
@@ -23,11 +17,9 @@
     pageIndex?: number;
     /** Force text visibility (for placeholder/missing pages) */
     forceVisible?: boolean;
-    /** Callback when context menu should be shown */
-    onContextMenu?: (data: ContextMenuData) => void;
   }
 
-  let { page, src, volumeUuid, pageIndex, forceVisible = false, onContextMenu }: Props = $props();
+  let { page, volumeUuid, pageIndex, forceVisible = false }: Props = $props();
 
   interface TextBoxData {
     left: string;
@@ -40,7 +32,6 @@
     area: number;
     useMinDimensions: boolean;
     isOriginalMode: boolean;
-    blockIndex: number; // Original index in page.blocks
     /** True for vertical (top-to-bottom) text — columns get spread to fill the
      *  box width after font sizing. */
     vertical: boolean;
@@ -48,7 +39,7 @@
 
   let textBoxes = $derived(
     page.blocks
-      .map((block, blockIndex) => {
+      .map((block) => {
         const { img_height, img_width } = page;
         const { box, font_size, lines, vertical } = block;
 
@@ -108,7 +99,6 @@
           area,
           useMinDimensions: $settings.fontSize !== 'auto' && !isOriginalMode,
           isOriginalMode,
-          blockIndex,
           vertical
         };
 
@@ -400,30 +390,19 @@
     };
   }
 
-  function handleContextMenu(
-    event: MouseEvent,
-    lines: string[],
-    blockIndex: number,
-    boxId: string
-  ) {
-    // Only show custom context menu if enabled in settings
+  function handleContextMenu(event: MouseEvent, lines: string[], boxId: string) {
+    // When the custom text-box menu setting is off, leave native browser and
+    // extension context menus alone. When on, right-click/long-press is the
+    // same direct multi-select action as the old menu's Select item.
     if (!$settings.textBoxContextMenu) return;
 
     event.preventDefault();
-
-    // Get text box bounds with padding
-    const block = page.blocks[blockIndex];
-    const textBox = block ? expandTextBoxBounds(block, page) : undefined;
-
-    onContextMenu?.({
-      x: event.clientX,
-      y: event.clientY,
-      lines,
-      imgElement: event.target as HTMLElement,
-      textBox,
-      pageIndex,
-      boxId
-    });
+    event.stopPropagation();
+    enterSelectMode();
+    setActiveTextBox(boxId);
+    closePopup();
+    toggleSelection(boxId, lines.join(''));
+    if (event.button !== 2) suppressTrailingContextClick(boxId);
   }
 
   function onDoubleTap(event: Event) {
@@ -471,21 +450,36 @@
   // Monotonic tap counter: a lookup that resolves after a newer tap started
   // must not clobber the newer tap's popup/highlight/mining context.
   let lookupSeq = 0;
+  let suppressNextClickBoxId: string | null = null;
+  let suppressNextClickTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function suppressTrailingContextClick(boxId: string) {
+    suppressNextClickBoxId = boxId;
+    if (suppressNextClickTimer) clearTimeout(suppressNextClickTimer);
+    suppressNextClickTimer = setTimeout(() => {
+      if (suppressNextClickBoxId === boxId) suppressNextClickBoxId = null;
+    }, 700);
+  }
 
   async function handleTextBoxClick(event: MouseEvent, boxId: string, lines: string[]) {
+    if (suppressNextClickBoxId === boxId) {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressNextClickBoxId = null;
+      if (suppressNextClickTimer) clearTimeout(suppressNextClickTimer);
+      return;
+    }
+
     // Double-click is handled separately by ondblclick (swallowed, no lookup)
     if (event.detail > 1) return;
     // User drag-selected text — don't override their selection
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
 
-    // Any new tap invalidates a prior lookup's mining context; only a successful
-    // lookup below re-establishes it (so the popup's mine button has fresh data).
-    setMiningContext(null);
-
     // Select mode: a tap toggles this box in/out of the ordered selection
     // instead of doing a dictionary lookup. Reveal the box so it stays readable.
     if ($selectMode) {
+      setMiningContext(null);
       setActiveTextBox(boxId);
       closePopup();
       toggleSelection(boxId, lines.join(''));
@@ -494,7 +488,10 @@
 
     // Editable-text mode: clicks place the editing caret; a lookup popup (and
     // its character highlight) fighting the caret would make editing unusable.
-    if (contenteditable) return;
+    if (contenteditable) {
+      setMiningContext(null);
+      return;
+    }
 
     // Tap-to-reveal (step 1): if this box isn't revealed yet, the first tap
     // only shows its text — no lookup. Hover-capable devices skip this step,
@@ -502,6 +499,7 @@
     // placeholder pages).
     const revealed = canHover || alwaysShowOCR || forceVisible || $activeTextBox === boxId;
     if (!revealed) {
+      setMiningContext(null);
       setActiveTextBox(boxId);
       closePopup();
       return;
@@ -512,6 +510,7 @@
 
     const caretRange = document.caretRangeFromPoint?.(event.clientX, event.clientY);
     if (!caretRange || caretRange.startContainer.nodeType !== Node.TEXT_NODE) {
+      setMiningContext(null);
       closePopup();
       return;
     }
@@ -553,6 +552,7 @@
     if (!match) {
       // Close any open popup but keep the tapped character highlighted as
       // feedback (closePopup clears the highlight, so re-apply it after).
+      setMiningContext(null);
       closePopup();
       highlightWord(tappedCharRanges);
       return;
@@ -631,7 +631,7 @@
 <!-- sizingEpoch in the key forces DOM recreation when a sizing setting changes,
      discarding the imperative font-size/white-space/line-height a previous
      measurement left inline (there's no other hook to unwind them). -->
-{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, blockIndex, vertical }, index (`${volumeUuid}-textBox-${index}-${sizingEpoch}`)}
+{#each textBoxes as { fontSize, height, left, lines, top, width, writingMode, useMinDimensions, isOriginalMode, vertical }, index (`${volumeUuid}-textBox-${index}-${sizingEpoch}`)}
   {@const boxId = `${volumeUuid}-${pageIndex ?? 0}-${index}`}
   {@const selOrder = $selection.findIndex((e) => e.id === boxId) + 1}
   {@const isSelected = selOrder > 0}
@@ -658,7 +658,7 @@
     style:filter={$imageFilter}
     role="none"
     onclick={(e) => handleTextBoxClick(e, boxId, lines)}
-    oncontextmenu={(e) => handleContextMenu(e, lines, blockIndex, boxId)}
+    oncontextmenu={(e) => handleContextMenu(e, lines, boxId)}
     ondblclick={onDoubleTap}
     oncopy={onCopy}
     {contenteditable}
@@ -786,20 +786,21 @@
 
   .selectBadge {
     position: absolute;
-    top: -10px;
-    left: -10px;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
+    top: 0;
+    right: -40px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 9px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 999px;
     background: #2563eb;
     color: #fff;
-    font-size: 12px;
+    font-size: 17px;
     font-weight: 700;
     line-height: 1;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.22);
     /* Keep the badge upright inside vertical (vertical-rl) text boxes. */
     writing-mode: horizontal-tb;
     z-index: 13;

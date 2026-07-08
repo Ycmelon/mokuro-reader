@@ -27,7 +27,7 @@ import {
 import type { ZoomSurface } from './zoom-controller';
 
 const OVERPAN_VIEWPORT_FRACTION_X = 0.3;
-const OVERPAN_VIEWPORT_FRACTION_Y = 0.3;
+const OVERPAN_VIEWPORT_FRACTION_Y = 0.5;
 const ZOOMED_EPSILON = 0.001;
 
 export interface PagedCameraConfig {

@@ -3,16 +3,6 @@
   import TextBoxes from './TextBoxes.svelte';
   import { imageFilter } from '$lib/settings';
 
-  interface ContextMenuData {
-    x: number;
-    y: number;
-    lines: string[];
-    imgElement: HTMLElement | null;
-    textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
-    pageIndex?: number;
-    boxId?: string;
-  }
-
   interface Props {
     page: Page;
     src?: File | null;
@@ -22,19 +12,9 @@
     pageIndex?: number;
     /** Force text visibility (for placeholder/missing pages) */
     forceVisible?: boolean;
-    /** Callback when context menu should be shown */
-    onContextMenu?: (data: ContextMenuData) => void;
   }
 
-  let {
-    page,
-    src,
-    cachedUrl,
-    volumeUuid,
-    pageIndex,
-    forceVisible = false,
-    onContextMenu
-  }: Props = $props();
+  let { page, src, cachedUrl, volumeUuid, pageIndex, forceVisible = false }: Props = $props();
 
   let url = $state('');
 
@@ -85,12 +65,5 @@
     style:background-position="center"
     style:filter={$imageFilter}
   ></div>
-  <TextBoxes
-    {page}
-    src={src ?? undefined}
-    {volumeUuid}
-    {pageIndex}
-    {forceVisible}
-    {onContextMenu}
-  />
+  <TextBoxes {page} src={src ?? undefined} {volumeUuid} {pageIndex} {forceVisible} />
 </div>

@@ -70,9 +70,9 @@
         },
         {
           key: 'textBoxContextMenu',
-          text: 'Custom text box menu',
+          text: 'Right-click text box selection',
           value: $settings.textBoxContextMenu,
-          description: 'Quick copy and Anki card creation on right-click/long-press'
+          description: 'Select OCR text boxes on right-click/long-press'
         }
       ] as { key: SettingsKey; text: string; value: any; shortcut?: string; description?: string }[]
     ).filter((t) => !isContinuous || !continuousHidden.has(t.key))

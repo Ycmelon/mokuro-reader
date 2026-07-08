@@ -27,7 +27,6 @@
     onPageChange: (newPage: number, charCount: number, isComplete: boolean) => void;
     onVolumeNav: (direction: 'prev' | 'next') => void;
     onOverlayToggle?: () => void;
-    onContextMenu?: (data: any) => void;
   }
 
   let {
@@ -38,8 +37,7 @@
     currentPage,
     onPageChange,
     onVolumeNav,
-    onOverlayToggle,
-    onContextMenu
+    onOverlayToggle
   }: Props = $props();
 
   let outerDiv: HTMLDivElement | undefined = $state();
@@ -515,7 +513,6 @@
                 volumeUuid={volume.volume_uuid}
                 pageIndex={i}
                 forceVisible={missingPagePaths.has(page.img_path)}
-                {onContextMenu}
               />
             </div>
           </div>

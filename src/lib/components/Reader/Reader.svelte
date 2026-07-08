@@ -17,13 +17,7 @@
     popupGoBack,
     closePopup
   } from '$lib/dictionary/lookup';
-  import {
-    selectMode,
-    enterSelectMode,
-    exitSelectMode,
-    toggleSelection,
-    type TextSelectionEntry
-  } from '$lib/reader/text-selection';
+  import { selectMode, exitSelectMode, type TextSelectionEntry } from '$lib/reader/text-selection';
   import SelectionToolbar from './SelectionToolbar.svelte';
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import {
@@ -38,11 +32,9 @@
     type ContinuousZoomMode,
     type ScheduleSettingKey
   } from '$lib/settings';
-  import { extractPageImageUrl } from '$lib/reader/page-image';
   import { clamp, fireExstaticEvent, resetScrollPosition } from '$lib/util';
   import { Input, Popover, Range, Spinner } from 'flowbite-svelte';
   import MangaPage from './MangaPage.svelte';
-  import TextBoxContextMenu from './TextBoxContextMenu.svelte';
   import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
   import MineCropOverlay from './MineCropOverlay.svelte';
   import MineReviewDialog from './MineReviewDialog.svelte';
@@ -54,7 +46,7 @@
     type MiningContext
   } from '$lib/anki-server/mining';
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
-  import { chatOpen, closeChat, openChatWithExplain } from '$lib/ai-chat/store';
+  import { chatOpen, closeChat } from '$lib/ai-chat/store';
   import { SkipBack, ChevronLeft, ChevronRight, SkipForward } from '@lucide/svelte';
   import { getCharCount } from '$lib/util/count-chars';
   import QuickActions from './QuickActions.svelte';
@@ -391,9 +383,6 @@
     if ($miningStage.kind === 'crop') {
       consume();
       cancelMining();
-    } else if (showContextMenu) {
-      consume();
-      showContextMenu = false;
     } else if ($chatOpen) {
       consume();
       closeChat();
@@ -418,14 +407,50 @@
   }
 
   onMount(() => {
+    let mounted = true;
+    let autoFullscreenActive = false;
+
+    function exitAutoFullscreen() {
+      if (
+        !autoFullscreenActive ||
+        document.fullscreenElement !== document.documentElement ||
+        !document.exitFullscreen
+      ) {
+        return;
+      }
+
+      autoFullscreenActive = false;
+      document.exitFullscreen().catch((err) => {
+        console.error('Failed to exit fullscreen:', err);
+      });
+    }
+
+    function handleFullscreenChange() {
+      if (autoFullscreenActive && document.fullscreenElement !== document.documentElement) {
+        autoFullscreenActive = false;
+      }
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
     // Set the timeout duration from settings
     activityTracker.setTimeoutDuration($settings.inactivityTimeoutMinutes);
 
     // Enter fullscreen on initial load if defaultFullscreen setting is enabled
     if ($settings.defaultFullscreen && !document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        console.error('Failed to enter fullscreen:', err);
-      });
+      document.documentElement
+        .requestFullscreen()
+        .then(() => {
+          if (document.fullscreenElement === document.documentElement) {
+            autoFullscreenActive = true;
+            if (!mounted) {
+              exitAutoFullscreen();
+            }
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to enter fullscreen:', err);
+        });
     }
 
     // Prevent scrollbars from appearing when in reader mode
@@ -439,10 +464,13 @@
     window.addEventListener('offset-spreads', onOffsetSpreads);
 
     return () => {
+      mounted = false;
+      exitAutoFullscreen();
       // Stop activity tracker when component unmounts
       activityTracker.stop();
       // Restore overflow when leaving reader
       document.documentElement.style.overflow = '';
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
       window.removeEventListener('offset-spreads', onOffsetSpreads);
     };
   });
@@ -811,50 +839,6 @@
   let notificationKey = $state<string>('');
   let notificationTimeout: number | undefined = undefined;
 
-  // Context menu state (rendered outside the zoom wrapper for correct positioning)
-  interface ContextMenuData {
-    x: number;
-    y: number;
-    lines: string[];
-    imgElement: HTMLElement | null;
-    textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
-    imageUrl?: string; // Captured at right-click time for reliability
-    pageIndex?: number; // Which page the context menu was opened on
-    boxId?: string; // Identity of the box, for seeding multi-select
-  }
-  let showContextMenu = $state(false);
-  let contextMenuData = $state<ContextMenuData | null>(null);
-
-  function handleTextBoxContextMenu(data: ContextMenuData) {
-    // Capture the image URL immediately while the DOM is in a known good state
-    // This prevents issues when Yomitan or other extensions modify the DOM
-    const imageUrl = extractPageImageUrl(data.imgElement) ?? undefined;
-    // Prefer pageIndex from the data (set by TextBoxes), fall back to progress store
-    const pageIndex =
-      data.pageIndex ??
-      ($volumes[volume!.volume_uuid]?.progress
-        ? ($volumes[volume!.volume_uuid].progress || 1) - 1
-        : index);
-
-    contextMenuData = {
-      ...data,
-      imageUrl,
-      pageIndex
-    };
-    showContextMenu = true;
-  }
-
-  function handleContextMenuSelect() {
-    if (!contextMenuData?.boxId) return;
-    enterSelectMode();
-    closePopup();
-    toggleSelection(contextMenuData.boxId, contextMenuData.lines.join(''));
-  }
-
-  function handleContextMenuExplain(text: string) {
-    openChatWithExplain(text);
-  }
-
   function buildSentenceMiningContext(
     sentence: string,
     pageIndex: number,
@@ -882,19 +866,6 @@
     closePopup();
     setMiningContext(ctx);
     startMiningSentenceOnly();
-  }
-
-  function handleContextMenuCreateFlashcard(text: string) {
-    if (!contextMenuData) return;
-    const pageIndex = contextMenuData.pageIndex ?? index;
-    startSentenceFlashcard(
-      buildSentenceMiningContext(
-        text,
-        pageIndex,
-        () => contextMenuData?.imgElement?.closest<HTMLElement>('[data-page-index]') ?? null,
-        contextMenuData.boxId ? [{ id: contextMenuData.boxId, text }] : []
-      )
-    );
   }
 
   function pageIndexFromSelection(entries: TextSelectionEntry[]): number {
@@ -1173,7 +1144,6 @@
         onPageChange={handleContinuousPageChange}
         onVolumeNav={handleContinuousVolumeNav}
         onOverlayToggle={() => (overlaysVisible = !overlaysVisible)}
-        onContextMenu={handleTextBoxContextMenu}
       />
     {:else}
       <HorizontalScrollReader
@@ -1186,7 +1156,6 @@
         onVolumeNav={handleContinuousVolumeNav}
         onVisibleCountChange={(count) => (continuousVisibleCount = count)}
         onOverlayToggle={() => (overlaysVisible = !overlaysVisible)}
-        onContextMenu={handleTextBoxContextMenu}
       />
     {/if}
   {:else}
@@ -1227,7 +1196,6 @@
                     volumeUuid={volume.volume_uuid}
                     pageIndex={index + 1}
                     forceVisible={missingPagePaths.has(pages[index + 1]?.img_path)}
-                    onContextMenu={handleTextBoxContextMenu}
                   />
                 {/if}
                 <MangaPage
@@ -1237,7 +1205,6 @@
                   volumeUuid={volume.volume_uuid}
                   pageIndex={index}
                   forceVisible={missingPagePaths.has(pages[index]?.img_path)}
-                  onContextMenu={handleTextBoxContextMenu}
                 />
               {:else}
                 <div class="flex h-screen w-screen items-center justify-center">
@@ -1249,25 +1216,6 @@
         </div>
       </PagedViewport>
     </div>
-  {/if}
-
-  {#if showContextMenu && contextMenuData}
-    <!-- Keyed so a second right-click on a different box remounts the menu:
-         it snapshots its text/selection with plain consts at init (deliberate,
-         see its comments), so a reused instance would keep serving the first
-         box's text. -->
-    {#key contextMenuData}
-      <TextBoxContextMenu
-        x={contextMenuData.x}
-        y={contextMenuData.y}
-        lines={contextMenuData.lines}
-        textBoxElement={contextMenuData.imgElement}
-        onSelect={handleContextMenuSelect}
-        onCreateFlashcard={handleContextMenuCreateFlashcard}
-        onExplain={handleContextMenuExplain}
-        onClose={() => (showContextMenu = false)}
-      />
-    {/key}
   {/if}
 
   <DictionaryPopup />
@@ -1288,7 +1236,7 @@
 {:else}
   <!-- Still loading: the volumes table or this volume's data/progress hasn't
        resolved yet. Show a spinner rather than flashing "not found". -->
-  <div class="fixed top-1/2 left-1/2 z-50">
-    <Spinner />
+  <div class="flex h-screen w-screen items-center justify-center">
+    <Spinner size="12" />
   </div>
 {/if}
