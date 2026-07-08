@@ -14,6 +14,7 @@ import type { Page } from '$lib/types';
 import { clamp, showSnackbar } from '$lib/util';
 import { getCroppedImg } from '$lib/anki-connect';
 import { extractPageImageUrl } from '$lib/reader/page-image';
+import type { TextSelectionEntry } from '$lib/reader/text-selection';
 
 /** Context captured at lookup time so a later mine action knows the sentence and
  *  which on-screen page to crop. Set by TextBoxes on every successful lookup. */
@@ -33,6 +34,9 @@ export interface MiningContext {
   /** Resolves the live `[data-page-index]` container so crop coords are read
    *  against its current on-screen rect (zoom/pan independent). */
   getPageEl: () => HTMLElement | null;
+  /** Text boxes that supplied the sentence, used to preselect them when the
+   *  sentence is reselected from the review dialog. */
+  sentenceSelection?: TextSelectionEntry[];
 }
 
 /** A crop rectangle in viewport (screen) coordinates. */
@@ -51,6 +55,7 @@ export interface MiningDraft {
   focus: string;
   image: string | null;
   cropRect?: CropRect | null;
+  sentenceSelection?: TextSelectionEntry[];
 }
 
 export type MiningStage =
@@ -60,6 +65,14 @@ export type MiningStage =
 
 export const miningContext = writable<MiningContext | null>(null);
 export const miningStage = writable<MiningStage>({ kind: 'idle' });
+export const sentenceReselecting = writable(false);
+export const sentenceReselected = writable<{
+  sentence: string;
+  selection: TextSelectionEntry[];
+  nonce: number;
+} | null>(null);
+
+let sentenceReselectNonce = 0;
 
 export function setMiningContext(ctx: MiningContext | null): void {
   miningContext.set(ctx);
@@ -75,7 +88,27 @@ export function startMining(): void {
   if (!ctx) return;
   miningStage.set({
     kind: 'crop',
-    draft: { sentence: ctx.sentence, focus: ctx.focus, image: null },
+    draft: {
+      sentence: ctx.sentence,
+      focus: ctx.focus,
+      image: null,
+      sentenceSelection: ctx.sentenceSelection
+    },
+    ctx
+  });
+}
+
+export function startMiningSentenceOnly(): void {
+  const ctx = get(miningContext);
+  if (!ctx) return;
+  miningStage.set({
+    kind: 'crop',
+    draft: {
+      sentence: ctx.sentence,
+      focus: '',
+      image: null,
+      sentenceSelection: ctx.sentenceSelection
+    },
     ctx
   });
 }
@@ -92,8 +125,22 @@ export function reopenCrop(draft: MiningDraft): void {
   });
 }
 
+export function beginSentenceReselect(): void {
+  sentenceReselecting.set(true);
+}
+
+export function finishSentenceReselect(sentence: string, selection: TextSelectionEntry[]): void {
+  sentenceReselected.set({ sentence, selection, nonce: ++sentenceReselectNonce });
+  sentenceReselecting.set(false);
+}
+
+export function cancelSentenceReselect(): void {
+  sentenceReselecting.set(false);
+}
+
 /** Abort the flow entirely. */
 export function cancelMining(): void {
+  sentenceReselecting.set(false);
   miningStage.set({ kind: 'idle' });
 }
 

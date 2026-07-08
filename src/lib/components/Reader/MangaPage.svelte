@@ -9,6 +9,8 @@
     lines: string[];
     imgElement: HTMLElement | null;
     textBox?: [number, number, number, number]; // [xmin, ymin, xmax, ymax] for initial crop
+    pageIndex?: number;
+    boxId?: string;
   }
 
   interface Props {

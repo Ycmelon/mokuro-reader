@@ -36,6 +36,10 @@ export function clearSelection(): void {
   selection.set([]);
 }
 
+export function setSelection(entries: TextSelectionEntry[]): void {
+  selection.set(entries);
+}
+
 export function enterSelectMode(): void {
   selectMode.set(true);
 }

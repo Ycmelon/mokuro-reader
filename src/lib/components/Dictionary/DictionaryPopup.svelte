@@ -12,7 +12,6 @@
   import PitchAccent from './PitchAccent.svelte';
   import Star from './Star.svelte';
   import { miscSettings, settings } from '$lib/settings';
-  import { CreditCardPlusAltOutline } from 'flowbite-svelte-icons';
   import { startMining } from '$lib/anki-server/mining';
   import type { LookupResult } from '$lib/dictionary/types';
 
@@ -93,20 +92,18 @@
     {#if canGoBack}
       <button class="dict-back" aria-label="Back" onclick={popupGoBack}>‹ Back</button>
     {/if}
-    <button class="dict-close" aria-label="Close" onclick={closePopup}>×</button>
     {#if canMine}
       <!-- One mine button for the whole lookup: the focus is the tapped word as
            written in the sentence, so it doesn't depend on which entry is shown. -->
       <button
         class="dict-mine"
-        aria-label="Mine card"
-        title="Mine card"
+        style:bottom="calc({popupHeight}vh - 1px)"
         onclick={() => {
           startMining();
           closePopup();
         }}
       >
-        <CreditCardPlusAltOutline size="sm" />
+        Create flashcard
       </button>
     {/if}
 
@@ -183,27 +180,6 @@
     line-height: 1.5;
   }
 
-  .dict-close {
-    position: sticky;
-    top: 0;
-    float: right;
-    margin: 6px 8px 0 0;
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 50%;
-    background: var(--color-gray-700);
-    color: var(--color-gray-300);
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    z-index: 1;
-  }
-
-  .dict-close:hover {
-    background: var(--color-gray-600);
-  }
-
   .dict-back {
     position: sticky;
     top: 0;
@@ -225,29 +201,29 @@
     background: var(--color-gray-600);
   }
 
-  /* Header mine button — one per lookup. Sticky + floated right so it sits just
-     left of the sticky close button without displacing the headword; z-index
-     keeps it above the close button's stacking neighbours. */
+  /* One mine button per lookup, floating over the popup edge. */
   .dict-mine {
-    position: sticky;
-    top: 0;
-    float: right;
-    margin: 6px 44px 0 0;
+    position: fixed;
+    left: 50%;
+    transform: translate(-50%, -35%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    min-height: 32px;
+    padding: 0 14px;
     border: none;
     border-radius: 8px;
-    background: var(--color-primary-600);
-    color: #fff;
+    background: var(--color-gray-700);
+    color: var(--color-gray-50);
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    z-index: 1;
+    z-index: 1001;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
   }
 
   .dict-mine:hover {
-    background: var(--color-primary-500);
+    background: var(--color-gray-600);
   }
 
   .dict-entry {

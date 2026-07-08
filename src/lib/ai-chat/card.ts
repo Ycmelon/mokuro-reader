@@ -46,7 +46,7 @@ Reply with ONLY a fenced \`\`\`json code block (no prose) of the exact form:
 }
 
 /** The first user turn that seeds generation for a mined card. Follow-up
- *  feedback turns are appended by the caller to build a refinement history. */
+ *  instruction turns are appended by the caller to build a refinement history. */
 export function buildGenerationPrompt(base: CardBase): string {
   return `Sentence: ${base.sentence}\nFocus: ${base.focus}\nGenerate the card.`;
 }

@@ -8,9 +8,17 @@
     miningStage,
     reopenCrop,
     cancelMining,
+    beginSentenceReselect,
+    sentenceReselecting,
+    sentenceReselected,
     type MiningContext,
     type MiningDraft
   } from '$lib/anki-server/mining';
+  import {
+    enterSelectMode,
+    setSelection,
+    type TextSelectionEntry
+  } from '$lib/reader/text-selection';
   import { buildGenerationPrompt, generateFromMessages, type CardBase } from '$lib/ai-chat/card';
   import { validateCardConfig } from '$lib/anki-server/cards';
   import { sendMinedCard } from '$lib/anki-server/send';
@@ -23,14 +31,16 @@
   let sentence = $state('');
   let focus = $state('');
   let image = $state<string | null>(null);
+  let sentenceSelection = $state<TextSelectionEntry[]>([]);
   let lastDraft: MiningDraft | null = null;
+  let lastSentenceReselectNonce = 0;
 
   // AI-generated fields, filled by "Generate" and then editable.
   let reading = $state('');
   let meaning = $state('');
   let extra = $state('');
   let comments = $state(''); // AI note about any OCR fixes it made (usually empty)
-  let feedback = $state(''); // user steer, sent to the model on Regenerate
+  let instructions = $state(''); // user steer, sent to the model on Generate/Regenerate
   let generated = $state(false);
   let generating = $state(false);
   let genError = $state('');
@@ -38,7 +48,7 @@
   // Set when a Redo crop is in flight, so the returning draft only swaps the
   // image and keeps the generated content instead of resetting it.
   let redoing = false;
-  // Running refinement conversation: each Regenerate appends the feedback turn
+  // Running refinement conversation: each Regenerate appends the instructions turn
   // and the model's reply, so successive edits build on prior ones. Reset on a
   // fresh mine; preserved across a Redo crop.
   let cardHistory: ChatMessage[] = [];
@@ -80,13 +90,22 @@
         // A fresh mine invalidates any prior generation.
         sentence = stage.draft.sentence;
         focus = stage.draft.focus;
-        reading = meaning = extra = comments = feedback = '';
+        sentenceSelection = stage.draft.sentenceSelection ?? [];
+        reading = meaning = extra = comments = instructions = '';
         cardHistory = [];
         generated = false;
         genError = '';
       }
       generating = false;
     }
+  });
+
+  $effect(() => {
+    const reselection = $sentenceReselected;
+    if (!reselection || reselection.nonce === lastSentenceReselectNonce) return;
+    lastSentenceReselectNonce = reselection.nonce;
+    sentence = reselection.sentence;
+    sentenceSelection = reselection.selection;
   });
 
   function base(): CardBase {
@@ -97,7 +116,13 @@
     // Flag the round-trip so the returning draft keeps the generated content.
     redoing = true;
     // Carry the current edits back so they survive the crop round-trip.
-    reopenCrop({ sentence, focus, image });
+    reopenCrop({ sentence, focus, image, sentenceSelection });
+  }
+
+  function onSelectSentence() {
+    setSelection(sentenceSelection);
+    enterSelectMode();
+    beginSentenceReselect();
   }
 
   async function onGenerate() {
@@ -105,14 +130,18 @@
     genError = '';
     try {
       // First generation seeds the sentence/focus; each later one appends the
-      // feedback (with the current, possibly-edited sentence/focus) so the model
-      // revises its previous card rather than starting over.
+      // instructions (with the current, possibly-edited sentence/focus) so the
+      // model revises its previous card rather than starting over.
+      const trimmedInstructions = instructions.trim();
       const userTurn: ChatMessage = {
         role: 'user',
         content: generated
           ? `Updated sentence: ${sentence}\nUpdated focus: ${focus}` +
-            (feedback.trim() ? `\nFeedback: ${feedback.trim()}` : '\nPlease revise the card.')
-          : buildGenerationPrompt(base())
+            (trimmedInstructions
+              ? `\nInstructions: ${trimmedInstructions}`
+              : '\nPlease revise the card.')
+          : buildGenerationPrompt(base()) +
+            (trimmedInstructions ? `\nInstructions: ${trimmedInstructions}` : '')
       };
       const messages = [...cardHistory, userTurn];
       const { fields, reply } = await generateFromMessages(messages);
@@ -126,7 +155,7 @@
       if (fields.meaning !== undefined) meaning = fields.meaning;
       if (fields.extra !== undefined) extra = fields.extra;
       if (fields.comments !== undefined) comments = fields.comments;
-      feedback = ''; // consumed into history; ready for the next steer
+      instructions = ''; // consumed into history; ready for the next steer
       generated = true;
       await tick();
       requestAnimationFrame(() =>
@@ -193,15 +222,20 @@
   }
 </script>
 
-<svelte:window onkeydown={$miningStage.kind === 'review' ? onKeydown : undefined} />
+<svelte:window
+  onkeydown={$miningStage.kind === 'review' && !$sentenceReselecting ? onKeydown : undefined}
+/>
 
-{#if $miningStage.kind === 'review'}
+{#if $miningStage.kind === 'review' && !$sentenceReselecting}
   <div class="review-scrim" style="z-index: 2000;">
     <div class="review-card bg-white dark:bg-gray-800" bind:this={cardEl}>
       <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Review card</h2>
 
       <div>
-        <Label class="mb-1 text-gray-900 dark:text-white">Sentence</Label>
+        <div class="mb-1 flex items-center justify-between gap-2">
+          <Label class="text-gray-900 dark:text-white">Sentence</Label>
+          <Button size="xs" color="alternative" onclick={onSelectSentence}>Select</Button>
+        </div>
         <textarea class={taClass} rows="1" bind:value={sentence} use:autogrow={sentence}></textarea>
       </div>
 
@@ -220,22 +254,6 @@
         <Button size="sm" color="alternative" class="mt-2" onclick={onRedoCrop}>Redo crop</Button>
       </div>
 
-      <!-- AI generation sits between the mined half above and the (manually
-           editable) generated half below; all fields stay visible so a card can
-           be filled in and sent without ever calling the AI. -->
-      <Button
-        color="alternative"
-        class="w-full"
-        onclick={onGenerate}
-        disabled={generating || sending}
-      >
-        {#if generating}
-          <Spinner size="4" class="me-2" />{generated ? 'Regenerating…' : 'Generating…'}
-        {:else}
-          {generated ? 'Regenerate' : 'Generate with AI'}
-        {/if}
-      </Button>
-
       <div>
         <Label class="mb-1 text-gray-900 dark:text-white">Reading</Label>
         <Input bind:value={reading} class="w-full" />
@@ -251,18 +269,17 @@
       {#if comments}
         <p class="text-sm text-amber-600 dark:text-amber-400">{comments}</p>
       {/if}
-      {#if generated}
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Feedback (applied on Regenerate)</Label>
-          <textarea
-            class={taClass}
-            rows="1"
-            bind:value={feedback}
-            use:autogrow={feedback}
-            placeholder="e.g. keep the meaning shorter, explain the grammar…"
-          ></textarea>
-        </div>
-      {/if}
+
+      <div>
+        <Label class="mb-1 text-gray-900 dark:text-white">Instructions for generation</Label>
+        <textarea
+          class={taClass}
+          rows="1"
+          bind:value={instructions}
+          use:autogrow={instructions}
+          placeholder="e.g. keep the meaning shorter, explain the grammar…"
+        ></textarea>
+      </div>
 
       {#if genError}
         <div class="rounded bg-red-100 p-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-200">
@@ -270,8 +287,21 @@
         </div>
       {/if}
 
+      <Button
+        color="alternative"
+        class="w-full"
+        onclick={onGenerate}
+        disabled={generating || sending}
+      >
+        {#if generating}
+          <Spinner size="4" class="me-2" />{generated ? 'Regenerating…' : 'Generating…'}
+        {:else}
+          {generated ? 'Regenerate' : 'Generate with AI'}
+        {/if}
+      </Button>
+
       <div class="relative z-10 flex flex-wrap justify-end gap-2 pt-1">
-        <Button color="alternative" onclick={cancelMining} disabled={sending}>Cancel</Button>
+        <Button color="alternative" onclick={cancelMining} disabled={sending}>Close</Button>
         <Button color="primary" onclick={onSendToAnki} disabled={sending || generating}>
           {#if sending}<Spinner size="4" class="me-2" />Sending…{:else}Send to Anki{/if}
         </Button>

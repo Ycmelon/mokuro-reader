@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MessagesOutline } from 'flowbite-svelte-icons';
+  import { CreditCardPlusOutline, MessagesOutline } from 'flowbite-svelte-icons';
   import { showSnackbar } from '$lib/util';
 
   interface Props {
@@ -8,11 +8,13 @@
     lines: string[];
     textBoxElement?: HTMLElement | null;
     onSelect: () => void;
+    onCreateFlashcard: (text: string) => void;
     onExplain: (text: string) => void;
     onClose: () => void;
   }
 
-  let { x, y, lines, textBoxElement, onSelect, onExplain, onClose }: Props = $props();
+  let { x, y, lines, textBoxElement, onSelect, onCreateFlashcard, onExplain, onClose }: Props =
+    $props();
 
   // Snapshot selection at menu open time — don't reactively track changes.
   // Reactive tracking causes a race with Yomitan: clicking our menu dismisses
@@ -176,6 +178,13 @@
     closeAfterAction();
   }
 
+  function handleCreateFlashcard(e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    onCreateFlashcard(fullTextStripped);
+    closeAfterAction();
+  }
+
   function handleExplain(e: Event) {
     e.preventDefault();
     e.stopPropagation();
@@ -247,6 +256,10 @@
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
     </svg>
     <span>Select</span>
+  </button>
+  <button type="button" class="menu-item" onpointerup={handleCreateFlashcard}>
+    <CreditCardPlusOutline size="sm" />
+    <span>Create flashcard</span>
   </button>
   <div class="divider"></div>
   <button type="button" class="menu-item" onpointerup={handleExplain}>

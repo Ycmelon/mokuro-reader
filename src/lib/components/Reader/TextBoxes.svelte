@@ -577,7 +577,8 @@
       volumeUuid,
       seriesTitle: $volumes[volumeUuid]?.series_title ?? '',
       volumeTitle: $volumes[volumeUuid]?.volume_title ?? '',
-      getPageEl: () => boxEl?.closest<HTMLElement>('[data-page-index]') ?? null
+      getPageEl: () => boxEl?.closest<HTMLElement>('[data-page-index]') ?? null,
+      sentenceSelection: [{ id: boxId, text: combined.trim() }]
     });
   }
 

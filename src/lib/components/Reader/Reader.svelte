@@ -21,7 +21,8 @@
     selectMode,
     enterSelectMode,
     exitSelectMode,
-    toggleSelection
+    toggleSelection,
+    type TextSelectionEntry
   } from '$lib/reader/text-selection';
   import SelectionToolbar from './SelectionToolbar.svelte';
   import { toggleFullScreen } from '$lib/util/fullscreen';
@@ -45,7 +46,13 @@
   import DictionaryPopup from '$lib/components/Dictionary/DictionaryPopup.svelte';
   import MineCropOverlay from './MineCropOverlay.svelte';
   import MineReviewDialog from './MineReviewDialog.svelte';
-  import { miningStage, cancelMining } from '$lib/anki-server/mining';
+  import {
+    miningStage,
+    cancelMining,
+    setMiningContext,
+    startMiningSentenceOnly,
+    type MiningContext
+  } from '$lib/anki-server/mining';
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
   import { chatOpen, closeChat, openChatWithExplain } from '$lib/ai-chat/store';
   import {
@@ -855,6 +862,70 @@
     openChatWithExplain(text);
   }
 
+  function buildSentenceMiningContext(
+    sentence: string,
+    pageIndex: number,
+    getPageEl: () => HTMLElement | null,
+    sentenceSelection: TextSelectionEntry[]
+  ): MiningContext | null {
+    if (!volume) return null;
+    const pageForCard = pages[pageIndex];
+    if (!pageForCard) return null;
+    return {
+      sentence,
+      focus: '',
+      page: pageForCard,
+      pageIndex,
+      volumeUuid: volume.volume_uuid,
+      seriesTitle: volume.series_title ?? '',
+      volumeTitle: volume.volume_title ?? '',
+      getPageEl,
+      sentenceSelection
+    };
+  }
+
+  function startSentenceFlashcard(ctx: MiningContext | null) {
+    if (!ctx) return;
+    closePopup();
+    setMiningContext(ctx);
+    startMiningSentenceOnly();
+  }
+
+  function handleContextMenuCreateFlashcard(text: string) {
+    if (!contextMenuData) return;
+    const pageIndex = contextMenuData.pageIndex ?? index;
+    startSentenceFlashcard(
+      buildSentenceMiningContext(
+        text,
+        pageIndex,
+        () => contextMenuData?.imgElement?.closest<HTMLElement>('[data-page-index]') ?? null,
+        contextMenuData.boxId ? [{ id: contextMenuData.boxId, text }] : []
+      )
+    );
+  }
+
+  function pageIndexFromSelection(entries: TextSelectionEntry[]): number {
+    const id = entries[0]?.id;
+    const prefix = volume ? `${volume.volume_uuid}-` : '';
+    if (id && prefix && id.startsWith(prefix)) {
+      const parsed = Number(id.slice(prefix.length).split('-')[0]);
+      if (Number.isInteger(parsed) && pages[parsed]) return parsed;
+    }
+    return index;
+  }
+
+  function handleSelectionCreateFlashcard(text: string, entries: TextSelectionEntry[]) {
+    const pageIndex = pageIndexFromSelection(entries);
+    startSentenceFlashcard(
+      buildSentenceMiningContext(
+        text,
+        pageIndex,
+        () => document.querySelector<HTMLElement>(`[data-page-index="${pageIndex}"]`),
+        entries
+      )
+    );
+  }
+
   function showNotification(message: string, key: string) {
     notificationMessage = message;
     notificationKey = key;
@@ -1039,7 +1110,7 @@
   <QuickActions {left} {right} visible={chromeVisible} />
   <AiChatButton visible={chromeVisible} />
   <SettingsButton visible={chromeVisible} />
-  <SelectionToolbar />
+  <SelectionToolbar onCreateFlashcard={handleSelectionCreateFlashcard} />
   {#if chromeVisible}
     <Popover
       placement="bottom"
@@ -1201,6 +1272,7 @@
         lines={contextMenuData.lines}
         textBoxElement={contextMenuData.imgElement}
         onSelect={handleContextMenuSelect}
+        onCreateFlashcard={handleContextMenuCreateFlashcard}
         onExplain={handleContextMenuExplain}
         onClose={() => (showContextMenu = false)}
       />
