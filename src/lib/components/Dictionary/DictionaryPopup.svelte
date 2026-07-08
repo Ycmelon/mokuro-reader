@@ -357,11 +357,9 @@
             {#if writings.length > 0}
               <span class="dict-kanji"
                 >{#each writings as w, i}<span class="dict-headword-item"
-                    >{#if i > 0}<span class="dict-sep">、</span>{/if}<span
-                      class="dict-writing"
-                      class:obscure={w.obscure}
+                    ><span class="dict-writing" class:obscure={w.obscure}
                       >{w.text}{#if w.priority}<Star />{/if}</span
-                    ></span
+                    >{#if i < writings.length - 1}<span class="dict-sep">、</span>{/if}</span
                   >{/each}</span
               >
             {/if}
@@ -373,15 +371,13 @@
               >{#each readings as r, i}{@const pitch =
                   pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
                   class="dict-headword-item"
-                  >{#if i > 0}<span class="dict-sep">、</span>{/if}<span
-                    class="dict-reading-item"
-                    class:obscure={r.obscure}
+                  ><span class="dict-reading-item" class:obscure={r.obscure}
                     >{#if pitch}<PitchAccent
                         reading={r.text}
                         position={pitch.positions[0]}
                         mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
                       />{:else}{r.text}{/if}{#if r.priority}<Star />{/if}</span
-                  ></span
+                  >{#if i < readings.length - 1}<span class="dict-sep">、</span>{/if}</span
                 >{/each}</span
             >
 
@@ -593,13 +589,12 @@
     border-bottom: none;
   }
 
-  /* Flex gaps only render between items that share a row, so the reading keeps
-     its kanji gap on the first line without being indented after a wrap. */
+  /* Each reading is its own flex item: rows may break between readings, but not
+     inside one. The kanji owns the visual gap so wrapped readings start flush. */
   .dict-headword {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    column-gap: 16px;
     row-gap: 0;
     margin-bottom: 4px;
     font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
@@ -616,7 +611,6 @@
   }
 
   .dict-kanji,
-  .dict-reading,
   .dict-inflection {
     min-width: 0;
     max-width: 100%;
@@ -627,15 +621,21 @@
   .dict-kanji {
     font-size: 20px;
     line-height: 30px;
+    margin-right: 16px;
     color: var(--color-gray-50);
   }
 
   /* Readings sit quietly in grey beside the word — this is the "reading only"
      case, where the kana just tells you how to pronounce the kanji. */
   .dict-reading {
+    display: contents;
     font-size: 18px;
     line-height: 30px;
     color: var(--color-gray-400);
+  }
+
+  .dict-reading .dict-headword-item:last-child {
+    margin-right: 16px;
   }
 
   /* A kana-only headword is the primary word; a 'uk' (usually-kana) word has a
@@ -663,6 +663,7 @@
     line-height: 16px;
     padding-bottom: 4px;
     color: var(--color-gray-400);
+    font-family: var(--dict-definition-font, 'UD Digi Kyokasho', var(--font-sans, sans-serif));
   }
 
   .dict-senses {
