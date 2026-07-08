@@ -24,6 +24,7 @@
   import { sendMinedCard } from '$lib/anki-server/send';
   import { UnauthorizedError } from '$lib/anki-server/client';
   import type { ChatMessage } from '$lib/ai-chat/openrouter';
+  import { Crop, ScanText } from '@lucide/svelte';
 
   // Local, editable copies of the draft. Reseeded only when a *new* draft arrives
   // (initial crop, or a redo-crop) — identified by object identity — so ongoing
@@ -234,7 +235,16 @@
       <div>
         <div class="mb-1 flex items-center justify-between gap-2">
           <Label class="text-gray-900 dark:text-white">Sentence</Label>
-          <Button size="xs" color="alternative" onclick={onSelectSentence}>Select</Button>
+          <button
+            type="button"
+            class="field-action"
+            onclick={onSelectSentence}
+            aria-label="Reselect sentence"
+            title="Reselect sentence"
+          >
+            <ScanText class="h-3.5 w-3.5" />
+            <span>Reselect</span>
+          </button>
         </div>
         <textarea class={taClass} rows="1" bind:value={sentence} use:autogrow={sentence}></textarea>
       </div>
@@ -245,13 +255,24 @@
       </div>
 
       <div>
-        <Label class="mb-1 text-gray-900 dark:text-white">Image</Label>
+        <div class="mb-1 flex items-center justify-between gap-2">
+          <Label class="text-gray-900 dark:text-white">Image</Label>
+          <button
+            type="button"
+            class="field-action"
+            onclick={onRedoCrop}
+            aria-label="Recrop image"
+            title="Recrop image"
+          >
+            <Crop class="h-3.5 w-3.5" />
+            <span>Recrop</span>
+          </button>
+        </div>
         {#if image}
           <img src={image} alt="Cropped card" class="review-image" />
         {:else}
           <p class="text-sm text-gray-500">No image</p>
         {/if}
-        <Button size="sm" color="alternative" class="mt-2" onclick={onRedoCrop}>Redo crop</Button>
       </div>
 
       <div>
@@ -338,9 +359,52 @@
   }
 
   .review-image {
+    display: block;
     max-width: 100%;
     max-height: 40vh;
     border-radius: 6px;
     object-fit: contain;
+  }
+
+  .field-action {
+    display: inline-flex;
+    height: 24px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 7px;
+    border: 1px solid rgb(209, 213, 219);
+    border-radius: 6px;
+    background: rgb(249, 250, 251);
+    color: rgb(55, 65, 81);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .field-action:hover {
+    background: rgb(243, 244, 246);
+    color: rgb(17, 24, 39);
+  }
+
+  .field-action:focus-visible {
+    outline: 2px solid rgb(254, 121, 93);
+    outline-offset: 2px;
+  }
+
+  :global(.dark) .field-action {
+    border-color: rgb(75, 85, 99);
+    background: rgb(55, 65, 81);
+    color: rgb(229, 231, 235);
+  }
+
+  :global(.dark) .field-action:hover {
+    background: rgb(75, 85, 99);
+    color: white;
   }
 </style>
