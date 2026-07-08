@@ -721,6 +721,17 @@
     text-size-adjust: 100%;
   }
 
+  @media (hover: none) and (pointer: coarse) {
+    .textBox:not([contenteditable='true']),
+    .textBox:not([contenteditable='true']) p {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+  }
+
   .textBox:focus p,
   .textBox:hover p,
   .textBox.active p {

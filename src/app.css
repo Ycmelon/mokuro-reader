@@ -101,6 +101,15 @@ body {
   filter: drop-shadow(0 0 3px var(--reader-bg)) drop-shadow(0 0 2px var(--reader-bg));
 }
 
+/* The reader handles taps, double-taps, pans, and text lookup itself. Native
+   selection/callouts on the surface fight those gestures on mobile browsers. */
+[data-mokuro-reader] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 @layer base {
   button:not(:disabled),
   [role='button']:not(:disabled) {

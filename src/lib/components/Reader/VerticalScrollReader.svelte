@@ -467,6 +467,7 @@
 
 <div
   bind:this={outerDiv}
+  data-mokuro-reader
   class="fixed inset-0"
   style:background-color="var(--reader-bg)"
   style:touch-action="none"

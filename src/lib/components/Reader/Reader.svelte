@@ -1135,36 +1135,11 @@
         pageKey={page}
         rtl={volumeSettings.rightToLeft ?? true}
         onPageFlip={(side) => (side === 'left' ? left(null, true) : right(null, true))}
+        onEdgePress={mouseDown}
+        onEdgeTap={(side) => (side === 'left' ? left(null) : right(null))}
+        edgeNavigationEnabled={!cropping}
         onOverlayToggle={() => (overlaysVisible = !overlaysVisible)}
       >
-        {#if !cropping}
-          <button
-            aria-label="Previous page (left edge)"
-            class="fixed -left-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
-            style:margin-left={`${$settings.edgeButtonWidth}px`}
-            onmousedown={mouseDown}
-            onmouseup={left}
-          ></button>
-          <button
-            aria-label="Next page (right edge)"
-            class="fixed -right-full z-10 h-full w-full opacity-[0.01] hover:bg-slate-400"
-            style:margin-right={`${$settings.edgeButtonWidth}px`}
-            onmousedown={mouseDown}
-            onmouseup={right}
-          ></button>
-          <button
-            aria-label="Previous page (bottom left)"
-            class="fixed top-full -left-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
-            onmousedown={mouseDown}
-            onmouseup={left}
-          ></button>
-          <button
-            aria-label="Next page (bottom right)"
-            class="fixed top-full -right-full z-10 h-screen w-[150%] opacity-[0.01] hover:bg-slate-400"
-            onmousedown={mouseDown}
-            onmouseup={right}
-          ></button>
-        {/if}
         <!--
           The invert/grayscale filter is applied per page-image and per text
           box (MangaPage / TextBoxes), NOT on this shared panel — putting it
@@ -1212,23 +1187,6 @@
         </div>
       </PagedViewport>
     </div>
-
-    {#if !$settings.mobile && !cropping}
-      <button
-        aria-label="Previous page (left edge)"
-        onmousedown={mouseDown}
-        onmouseup={left}
-        class="absolute top-0 left-0 h-full w-16 opacity-[0.01] hover:bg-slate-400"
-        style:width={`${$settings.edgeButtonWidth}px`}
-      ></button>
-      <button
-        aria-label="Next page (right edge)"
-        onmousedown={mouseDown}
-        onmouseup={right}
-        class="absolute top-0 right-0 h-full w-16 opacity-[0.01] hover:bg-slate-400"
-        style:width={`${$settings.edgeButtonWidth}px`}
-      ></button>
-    {/if}
   {/if}
 
   {#if showContextMenu && contextMenuData}

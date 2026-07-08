@@ -36,13 +36,29 @@
      * caller's concern.
      */
     onPageFlip?: (side: 'left' | 'right') => void;
+    /** A viewport-edge tap pressed down, before click dismissal state changes. */
+    onEdgePress?: () => void;
+    /** A viewport-edge tap asked for navigation on this visual side. */
+    onEdgeTap?: (side: 'left' | 'right') => void;
+    edgeNavigationEnabled?: boolean;
     /** A lone tap on the page surface (not text box / chrome). */
     onOverlayToggle?: () => void;
     children?: Snippet;
   }
 
-  let { contentSize, pageKey, rtl, onPageFlip, onOverlayToggle, children }: Props = $props();
+  let {
+    contentSize,
+    pageKey,
+    rtl,
+    onPageFlip,
+    onEdgePress,
+    onEdgeTap,
+    edgeNavigationEnabled = true,
+    onOverlayToggle,
+    children
+  }: Props = $props();
 
+  let surfaceEl: HTMLDivElement | undefined = $state();
   let wrapperEl: HTMLDivElement | undefined = $state();
   let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1024);
   let viewportHeight = $state(typeof window !== 'undefined' ? window.innerHeight : 768);
@@ -185,8 +201,8 @@
   // (src/lib/reader/input/pointer-tracker.ts); this config holds only the
   // paged surface's policy:
   //
-  // - capture 'deferred': gutter-button clicks and text-selection drags
-  //   deliver natively; capture engages only once a drag crosses threshold
+  // - capture 'deferred': taps and text-selection drags deliver natively;
+  //   capture engages only once a drag crosses threshold
   // - mouse/pen on a text box is a selection drag, never a pan; touch has no
   //   drag-selection gesture, so touch pans everywhere (exactly like the old
   //   panzoom touch path)
@@ -202,7 +218,7 @@
   let edgeAtPress = { canRevealLeft: false, canRevealRight: false };
 
   const tracker = new PointerGestureTracker({
-    getElement: () => wrapperEl,
+    getElement: () => surfaceEl,
     capturePolicy: 'deferred',
     suppressPan: (e) => {
       if (gestureTargetRole(e.target) !== 'textbox') return false;
@@ -268,23 +284,41 @@
     onDoubleTap: (x, y) => doubleTap(x, y)
   });
 
+  function edgeSideFromX(x: number): 'left' | 'right' | null {
+    if (!edgeNavigationEnabled || !onEdgeTap) return null;
+    const edgeWidth = Math.max(0, Math.min($settings.edgeButtonWidth, viewportWidth / 2));
+    if (x <= edgeWidth) return 'left';
+    if (x >= viewportWidth - edgeWidth) return 'right';
+    return null;
+  }
+
+  function handlePointerDown(e: PointerEvent) {
+    if (gestureTargetRole(e.target) !== 'page') return;
+    if (edgeSideFromX(e.clientX)) onEdgePress?.();
+  }
+
   function handleClick(e: MouseEvent) {
     if (gestureTargetRole(e.target) !== 'page') return;
     if (tracker.wasDrag) return;
+    const edgeSide = edgeSideFromX(e.clientX);
+    if (edgeSide) {
+      onEdgeTap?.(edgeSide);
+      return;
+    }
     taps.tap(e.clientX, e.clientY);
   }
 
   onMount(() => {
     pagedZoom.set(api);
     tracker.attach();
-    wrapperEl?.addEventListener('wheel', handleWheel, { passive: false });
+    surfaceEl?.addEventListener('wheel', handleWheel, { passive: false });
   });
 
   onDestroy(() => {
     pagedZoom.set(undefined);
     tracker.detach();
     taps.cancel();
-    wrapperEl?.removeEventListener('wheel', handleWheel);
+    surfaceEl?.removeEventListener('wheel', handleWheel);
     controller.destroy();
     camera.destroy();
   });
@@ -293,11 +327,15 @@
 <svelte:window onresize={handleResize} />
 
 <div
-  bind:this={wrapperEl}
+  bind:this={surfaceEl}
   data-mokuro-reader
+  class="fixed inset-0 overflow-hidden"
   style:touch-action="none"
+  onpointerdown={handlePointerDown}
   onclick={handleClick}
   role="none"
 >
-  {@render children?.()}
+  <div bind:this={wrapperEl}>
+    {@render children?.()}
+  </div>
 </div>
