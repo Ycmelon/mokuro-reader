@@ -2,7 +2,7 @@
   import { READER_VERSION } from '$lib/consts';
   import { toClipboard } from '$lib/util';
   import { A, AccordionItem, Helper } from 'flowbite-svelte';
-  import { DiscordSolid, GithubSolid } from 'flowbite-svelte-icons';
+  import { MessagesSquare, GitBranch } from '@lucide/svelte';
 </script>
 
 <AccordionItem>
@@ -16,14 +16,14 @@
           href="https://discord.gg/AU5pjjSQBw"
           target="_blank"
         >
-          <DiscordSolid />
+          <MessagesSquare />
         </a>
         <a
           class="text-gray-900 hover:text-primary-600 dark:text-white"
           href="https://github.com/Gnathonic/mokuro-reader"
           target="_blank"
         >
-          <GithubSolid />
+          <GitBranch />
         </a>
       </div>
     </div>

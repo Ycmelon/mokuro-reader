@@ -26,18 +26,17 @@
   import { getCurrentPage, getProgressDisplay, isVolumeComplete } from '$lib/util/volume-helpers';
   import { ListgroupItem, Dropdown, DropdownItem, Badge } from 'flowbite-svelte';
   import {
-    CheckCircleSolid,
-    CloseCircleOutline,
-    CheckCircleOutline,
-    TrashBinSolid,
-    FileLinesOutline,
-    DotsVerticalOutline,
-    CloudArrowUpOutline,
-    ImageOutline,
-    ExclamationCircleOutline,
-    EditOutline,
-    DownloadSolid
-  } from 'flowbite-svelte-icons';
+    CircleCheck,
+    CircleX,
+    Trash2,
+    FileText,
+    MoreVertical,
+    CloudUpload,
+    Image,
+    CircleAlert,
+    Pencil,
+    Download
+  } from '@lucide/svelte';
   import { promptVolumeEditor } from '$lib/util/modals';
   import { db } from '$lib/catalog/db';
   import { deleteVolume as deleteStoredVolume } from '$lib/import';
@@ -555,13 +554,13 @@
               </p>
               {#if isImageOnly}
                 <Badge color="blue" class="text-xs">
-                  <ImageOutline class="me-1 inline h-3 w-3" />
+                  <Image class="me-1 inline h-3 w-3" />
                   Image Only
                 </Badge>
               {/if}
               {#if missingPages}
                 <Badge color="yellow" class="text-xs">
-                  <ExclamationCircleOutline class="me-1 inline h-3 w-3" />
+                  <CircleAlert class="me-1 inline h-3 w-3" />
                   Missing {missingPages} page{missingPages > 1 ? 's' : ''}
                 </Badge>
               {/if}
@@ -580,24 +579,24 @@
               class="flex items-center justify-center"
               title="View text only"
             >
-              <FileLinesOutline class="z-10 text-blue-400 hover:text-blue-500" />
+              <FileText class="z-10 text-blue-400 hover:text-blue-500" />
             </button>
             <button
               onclick={onExtractClicked}
               class="flex items-center justify-center"
               title="Extract volume"
             >
-              <DownloadSolid class="z-10 text-gray-400 hover:text-gray-300" />
+              <Download class="z-10 text-gray-400 hover:text-gray-300" />
             </button>
             <button
               onclick={onEditClicked}
               class="flex items-center justify-center"
               title="Edit volume"
             >
-              <EditOutline class="z-10 text-gray-400 hover:text-gray-300" />
+              <Pencil class="z-10 text-gray-400 hover:text-gray-300" />
             </button>
             <button onclick={onDeleteClicked} class="flex items-center justify-center">
-              <TrashBinSolid class="poin z-10 text-red-400 hover:text-red-500" />
+              <Trash2 class="poin z-10 text-red-400 hover:text-red-500" />
             </button>
             <button
               onclick={onToggleStatusClicked}
@@ -605,11 +604,11 @@
               title={isComplete ? 'Mark as unread' : 'Mark as read'}
             >
               {#if isComplete}
-                <CheckCircleSolid
+                <CircleCheck
                   class="z-10 text-green-400 hover:text-green-600 dark:hover:text-green-300"
                 />
               {:else}
-                <CheckCircleOutline class="z-10 text-gray-400 hover:text-green-500" />
+                <CircleCheck class="z-10 text-gray-400 hover:text-green-500" />
               {/if}
             </button>
           </div>
@@ -635,7 +634,7 @@
           closeAllMenus();
         }}
       >
-        <DotsVerticalOutline class="h-4 w-4 text-white" />
+        <MoreVertical class="h-4 w-4 text-white" />
       </button>
       <Dropdown
         triggeredBy="#volume-menu-{volume_uuid}"
@@ -646,21 +645,21 @@
           onclick={onEditClicked}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
         >
-          <EditOutline class="me-2 h-5 w-5 flex-shrink-0" />
+          <Pencil class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">Edit</span>
         </DropdownItem>
         <DropdownItem
           onclick={onViewTextClicked}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
         >
-          <FileLinesOutline class="me-2 h-5 w-5 flex-shrink-0" />
+          <FileText class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">View text</span>
         </DropdownItem>
         <DropdownItem
           onclick={onExtractClicked}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
         >
-          <DownloadSolid class="me-2 h-5 w-5 flex-shrink-0" />
+          <Download class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">Extract</span>
         </DropdownItem>
         {#if hasAuthenticatedProvider && !isReadOnlyMode}
@@ -671,14 +670,12 @@
             </DropdownItem>
           {:else if isBackedUp}
             <DropdownItem onclick={onBackupClicked} class="flex w-full items-center">
-              <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0 text-red-500" />
+              <Trash2 class="me-2 h-5 w-5 flex-shrink-0 text-red-500" />
               <span class="flex-1 text-left text-red-500">Delete from cloud</span>
             </DropdownItem>
           {:else}
             <DropdownItem onclick={onBackupClicked} class="flex w-full items-center">
-              <CloudArrowUpOutline
-                class="me-2 h-5 w-5 flex-shrink-0 text-gray-700 dark:text-gray-200"
-              />
+              <CloudUpload class="me-2 h-5 w-5 flex-shrink-0 text-gray-700 dark:text-gray-200" />
               <span class="flex-1 text-left text-gray-700 dark:text-gray-200">Backup to cloud</span>
             </DropdownItem>
           {/if}
@@ -688,7 +685,7 @@
             onclick={onToggleStatusClicked}
             class="flex w-full items-center text-green-600 hover:!text-green-700 dark:text-green-500 dark:hover:!text-green-400"
           >
-            <CheckCircleOutline class="me-2 h-5 w-5 flex-shrink-0" />
+            <CircleCheck class="me-2 h-5 w-5 flex-shrink-0" />
             <span class="flex-1 text-left">Mark as read</span>
           </DropdownItem>
         {:else}
@@ -696,7 +693,7 @@
             onclick={onToggleStatusClicked}
             class="flex w-full items-center text-gray-500 hover:!text-gray-900 dark:text-gray-400 dark:hover:!text-white"
           >
-            <CloseCircleOutline class="me-2 h-5 w-5 flex-shrink-0" />
+            <CircleX class="me-2 h-5 w-5 flex-shrink-0" />
             <span class="flex-1 text-left">Mark as unread</span>
           </DropdownItem>
         {/if}
@@ -704,7 +701,7 @@
           onclick={onDeleteClicked}
           class="flex w-full items-center text-red-500 hover:!text-red-500 dark:hover:!text-red-500"
         >
-          <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0" />
+          <Trash2 class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">Delete</span>
         </DropdownItem>
       </Dropdown>
@@ -734,18 +731,18 @@
               {volName}
             </div>
             {#if isComplete}
-              <CheckCircleSolid class="h-5 w-5 flex-shrink-0 text-green-400" />
+              <CircleCheck class="h-5 w-5 flex-shrink-0 text-green-400" />
             {/if}
           </div>
           {#if isImageOnly}
             <Badge color="blue" class="w-fit text-xs">
-              <ImageOutline class="me-1 inline h-3 w-3" />
+              <Image class="me-1 inline h-3 w-3" />
               Image Only
             </Badge>
           {/if}
           {#if missingPages}
             <Badge color="yellow" class="w-fit text-xs">
-              <ExclamationCircleOutline class="me-1 inline h-3 w-3" />
+              <CircleAlert class="me-1 inline h-3 w-3" />
               Missing {missingPages} page{missingPages > 1 ? 's' : ''}
             </Badge>
           {/if}

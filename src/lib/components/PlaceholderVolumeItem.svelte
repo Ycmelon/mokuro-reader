@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { VolumeMetadata } from '$lib/types';
   import { ListgroupItem, Button, Spinner, Badge } from 'flowbite-svelte';
-  import { DownloadSolid, TrashBinSolid } from 'flowbite-svelte-icons';
+  import { Download, Trash2 } from '@lucide/svelte';
   import { downloadQueue } from '$lib/util/download-queue';
   import { progressTrackerStore } from '$lib/util/progress-tracker';
   import { showSnackbar, promptConfirmation } from '$lib/util';
@@ -145,7 +145,7 @@
     class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-600 dark:border-gray-700"
   >
     <ListgroupItem class="py-4 opacity-70">
-      <DownloadSolid class="mr-3 h-[70px] w-[50px] text-blue-400" />
+      <Download class="mr-3 h-[70px] w-[50px] text-blue-400" />
       <div class="flex w-full flex-row items-center justify-between gap-5">
         <div>
           <p class="font-semibold text-gray-400">{volName}</p>
@@ -162,11 +162,11 @@
             </Button>
           {:else}
             <Button color="blue" onclick={onDownloadClicked}>
-              <DownloadSolid class="me-2 h-4 w-4" />
+              <Download class="me-2 h-4 w-4" />
               Download
             </Button>
             <Button color="red" onclick={onDeleteClicked}>
-              <TrashBinSolid class="me-2 h-4 w-4" />
+              <Trash2 class="me-2 h-4 w-4" />
               Delete
             </Button>
           {/if}

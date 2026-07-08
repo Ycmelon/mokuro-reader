@@ -30,15 +30,15 @@
     Modal
   } from 'flowbite-svelte';
   import {
-    AwardSolid,
-    FireSolid,
-    ClockSolid,
-    BookSolid,
-    ArrowUpOutline,
-    ArrowDownOutline,
-    ChartLineUpOutline,
-    TrashBinSolid
-  } from 'flowbite-svelte-icons';
+    Award,
+    Flame,
+    Clock,
+    BookOpen,
+    TrendingUp,
+    TrendingDown,
+    ChartNoAxesCombined,
+    Trash2
+  } from '@lucide/svelte';
   import type { VolumeMetadata } from '$lib/types';
   import Chart from 'chart.js/auto';
 
@@ -915,8 +915,8 @@
   }
 
   function getTrendIcon(trend: number) {
-    if (trend > 10) return ArrowUpOutline;
-    if (trend < -10) return ArrowDownOutline;
+    if (trend > 10) return TrendingUp;
+    if (trend < -10) return TrendingDown;
     return null;
   }
 
@@ -1083,7 +1083,7 @@
   {#if !hasReadingData && $volumeSpeedData.length === 0}
     <!-- Empty State Message - No reading activity at all -->
     <Card class="mb-6 py-8 text-center">
-      <BookSolid size="lg" class="mx-auto mb-3 text-gray-500" />
+      <BookOpen class="mx-auto mb-3 h-6 w-6 text-gray-500" />
       <h2 class="mb-2 text-lg font-semibold text-gray-300">No Reading History Yet</h2>
       <p class="text-sm text-gray-400">Start reading to track your reading speed!</p>
     </Card>
@@ -1091,7 +1091,7 @@
     <!-- Collecting Data Message - Has page turns but not enough time yet -->
     {@const minutesNeeded = 30 - $stats.totalTimeMinutes}
     <Card class="mb-6 py-8 text-center">
-      <ClockSolid size="lg" class="mx-auto mb-3 text-gray-500" />
+      <Clock class="mx-auto mb-3 h-6 w-6 text-gray-500" />
       <h2 class="mb-2 text-lg font-semibold text-gray-300">Collecting Reading Data...</h2>
       <p class="text-sm text-gray-400">
         Keep reading! {minutesNeeded > 0
@@ -1116,7 +1116,7 @@
             </p>
             <p class="text-xs text-gray-500">chars/min</p>
           </div>
-          <FireSolid size="lg" class="text-orange-500" />
+          <Flame class="h-6 w-6 text-orange-500" />
         </div>
       </Card>
 
@@ -1128,7 +1128,7 @@
             <p class="text-2xl font-bold">{formatMetric($stats.totalCharsRead)}</p>
             <p class="text-xs text-gray-500">{formatNumber($stats.totalCharsRead)} total</p>
           </div>
-          <ChartLineUpOutline size="lg" class="text-blue-500" />
+          <ChartNoAxesCombined class="h-6 w-6 text-blue-500" />
         </div>
       </Card>
 
@@ -1140,7 +1140,7 @@
             <p class="text-2xl font-bold">{$totalCompletedVolumes}</p>
             <p class="text-xs text-gray-500">({$stats.volumesCompleted} tracked)</p>
           </div>
-          <BookSolid size="lg" class="text-green-500" />
+          <BookOpen class="h-6 w-6 text-green-500" />
         </div>
       </Card>
 
@@ -1165,7 +1165,7 @@
               </div>
             {/if}
           </div>
-          <ClockSolid size="lg" class="text-purple-500" />
+          <Clock class="h-6 w-6 text-purple-500" />
         </div>
       </Card>
     </div>
@@ -1174,7 +1174,7 @@
     <Card class="mb-6 w-full max-w-none p-6">
       <div class="mb-4 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <AwardSolid size="md" class="text-yellow-500" />
+          <Award class="h-5 w-5 text-yellow-500" />
           <span class="font-semibold">Achievements</span>
         </div>
         <Button
@@ -1268,7 +1268,7 @@
                         ? 'text-gray-400'
                         : 'text-green-500'} flex items-center gap-1"
                     >
-                      <ArrowUpOutline size="xs" />
+                      <TrendingUp class="h-3 w-3" />
                       +{Math.round(series.speedImprovement)}%
                     </span>
                   {:else if series.speedImprovement < 0}
@@ -1277,7 +1277,7 @@
                         ? 'text-gray-400'
                         : 'text-red-500'} flex items-center gap-1"
                     >
-                      <ArrowDownOutline size="xs" />
+                      <TrendingDown class="h-3 w-3" />
                       {Math.round(series.speedImprovement)}%
                     </span>
                   {:else}
@@ -1294,7 +1294,7 @@
                         confirmDeleteOrphaned();
                       }}
                     >
-                      <TrashBinSolid class="h-3 w-3" />
+                      <Trash2 class="h-3 w-3" />
                     </Button>
                   {/if}
                 </TableBodyCell>
@@ -1372,7 +1372,7 @@
                 <TableBodyCell>
                   {#if !isVolumeDemo}
                     <Button size="xs" color="red" onclick={() => confirmDelete(volume)}>
-                      <TrashBinSolid class="h-3 w-3" />
+                      <Trash2 class="h-3 w-3" />
                     </Button>
                   {/if}
                 </TableBodyCell>
@@ -1388,7 +1388,7 @@
 <!-- Delete Confirmation Modal -->
 <Modal bind:open={deleteModalOpen} size="xs" autoclose={false}>
   <div class="text-center">
-    <TrashBinSolid size="lg" class="mx-auto mb-4 text-gray-400 dark:text-gray-200" />
+    <Trash2 class="mx-auto mb-4 h-6 w-6 text-gray-400 dark:text-gray-200" />
     <h3 class="mb-5 text-lg font-normal text-gray-500 dark:text-gray-400">
       Are you sure you want to delete reading data for<br />
       <span class="font-semibold">{volumeToDelete?.volumeTitle}</span>?
@@ -1415,7 +1415,7 @@
 <!-- Orphaned Data Deletion Modal -->
 <Modal bind:open={orphanedDeleteModalOpen} size="sm" autoclose={false}>
   <div class="text-center">
-    <TrashBinSolid size="lg" class="mx-auto mb-4 text-gray-400 dark:text-gray-200" />
+    <Trash2 class="mx-auto mb-4 h-6 w-6 text-gray-400 dark:text-gray-200" />
     <h3 class="mb-4 text-xl font-semibold text-gray-300">Remove Orphaned Volume Data?</h3>
     <p class="mb-4 text-base text-gray-400">
       You have <span class="font-semibold text-gray-900 dark:text-white"

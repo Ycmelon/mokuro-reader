@@ -4,7 +4,7 @@
   import { db } from '$lib/catalog/db';
   import { getCharCount } from '$lib/util/count-chars';
   import { Button, Alert } from 'flowbite-svelte';
-  import { ArrowLeftOutline, ClipboardOutline, CheckOutline } from 'flowbite-svelte-icons';
+  import { ArrowLeft, Clipboard, Check } from '@lucide/svelte';
   import { Spinner } from 'flowbite-svelte';
   import type { VolumeData, VolumeMetadata } from '$lib/types';
   import { onMount } from 'svelte';
@@ -194,19 +194,19 @@
         <!-- Navigation Buttons -->
         <div class="mb-4 flex flex-wrap gap-2">
           <Button size="sm" color="alternative" onclick={goBackToSeries}>
-            <ArrowLeftOutline class="mr-2 h-3.5 w-3.5" />
+            <ArrowLeft class="mr-2 h-3.5 w-3.5" />
             Back to Series
           </Button>
           <Button size="sm" color="alternative" onclick={goBackToCatalog}>
-            <ArrowLeftOutline class="mr-2 h-3.5 w-3.5" />
+            <ArrowLeft class="mr-2 h-3.5 w-3.5" />
             Back to Catalog
           </Button>
           <Button size="sm" color="primary" onclick={copyText}>
             {#if copySuccess}
-              <CheckOutline class="mr-2 h-3.5 w-3.5" />
+              <Check class="mr-2 h-3.5 w-3.5" />
               Copied!
             {:else}
-              <ClipboardOutline class="mr-2 h-3.5 w-3.5" />
+              <Clipboard class="mr-2 h-3.5 w-3.5" />
               Copy All Text
             {/if}
           </Button>
@@ -325,7 +325,7 @@
     <div class="text-center">
       <p class="text-gray-600 dark:text-gray-400">No volumes available for this series.</p>
       <Button class="mt-4" color="alternative" onclick={goBackToCatalog}>
-        <ArrowLeftOutline class="mr-2 h-3.5 w-3.5" />
+        <ArrowLeft class="mr-2 h-3.5 w-3.5" />
         Back to Catalog
       </Button>
     </div>

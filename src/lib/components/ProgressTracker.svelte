@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Progressbar } from 'flowbite-svelte';
-  import { CaretDownSolid, CaretUpSolid } from 'flowbite-svelte-icons';
+  import { ChevronDown, ChevronUp } from '@lucide/svelte';
   import { formatBytes } from '$lib/util';
   import { progressTrackerStore } from '$lib/util/progress-tracker';
 
@@ -31,9 +31,9 @@
       </div>
       <div>
         {#if expanded}
-          <CaretDownSolid class="h-4 w-4" />
+          <ChevronDown class="h-4 w-4" />
         {:else}
-          <CaretUpSolid class="h-4 w-4" />
+          <ChevronUp class="h-4 w-4" />
         {/if}
       </div>
     </div>

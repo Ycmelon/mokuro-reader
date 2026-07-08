@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronRightOutline } from 'flowbite-svelte-icons';
+  import { ChevronRight } from '@lucide/svelte';
   import { slide } from 'svelte/transition';
 
   type TemplateButton = {
@@ -185,7 +185,7 @@
     {disabled}
   >
     <span class="mt-0.5 text-gray-400 transition-transform duration-200" class:rotate-90={expanded}>
-      <ChevronRightOutline class="h-3 w-3" />
+      <ChevronRight class="h-3 w-3" />
     </span>
     <span class="mt-0.5 min-w-16 shrink-0 text-sm text-gray-500 dark:text-gray-400"
       >{fieldName}</span

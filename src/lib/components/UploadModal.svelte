@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Accordion, AccordionItem, Button, Dropzone, Modal, Spinner } from 'flowbite-svelte';
-  import { UploadSolid } from 'flowbite-svelte-icons';
+  import { Upload } from '@lucide/svelte';
   import { importFiles, isImporting } from '$lib/import';
   import { scanFiles } from '$lib/upload';
   import { onMount } from 'svelte';
@@ -206,7 +206,7 @@
       }}
       class={activeStyle}
     >
-      <UploadSolid class="mb-3 h-10 w-10 text-gray-400" />
+      <Upload class="mb-3 h-10 w-10 text-gray-400" />
       {#if files}
         <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">
           Import {files.length}

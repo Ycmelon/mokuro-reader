@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MessagesOutline } from 'flowbite-svelte-icons';
+  import { MessagesSquare } from '@lucide/svelte';
   import { chatOpen } from '$lib/ai-chat/store';
 
   interface Props {
@@ -18,6 +18,6 @@
     onclick={openChat}
     class="reader-hud fixed top-3 right-16 z-10 p-2 opacity-80 hover:text-primary-600 hover:opacity-100"
   >
-    <MessagesOutline size="xl" />
+    <MessagesSquare class="h-8 w-8" />
   </button>
 {/if}

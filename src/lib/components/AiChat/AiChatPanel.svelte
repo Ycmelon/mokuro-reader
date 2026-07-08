@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Drawer, Spinner } from 'flowbite-svelte';
-  import { ChevronDownOutline, CloseOutline, TrashBinOutline } from 'flowbite-svelte-icons';
+  import { ChevronDown, SendHorizontal, X, Trash2 } from '@lucide/svelte';
   import { sineIn } from 'svelte/easing';
   import { onMount, tick } from 'svelte';
   import {
@@ -172,7 +172,7 @@
           aria-label="Clear history"
           class="m-0.5 rounded-lg p-1.5 text-gray-500 hover:bg-gray-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
         >
-          <TrashBinOutline class="h-5 w-5" />
+          <Trash2 class="h-5 w-5" />
         </button>
         <button
           onclick={closeChat}
@@ -180,7 +180,7 @@
           aria-label="Close chat"
           class="m-0.5 rounded-lg p-1.5 text-gray-500 hover:bg-gray-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
         >
-          <CloseOutline class="h-5 w-5" />
+          <X class="h-5 w-5" />
         </button>
       </div>
     </div>
@@ -233,7 +233,7 @@
           aria-label="Scroll to latest message"
           title="Scroll to latest message"
         >
-          <ChevronDownOutline class="h-4 w-4" />
+          <ChevronDown class="h-4 w-4" />
         </button>
       {/if}
     </div>
@@ -256,16 +256,7 @@
           aria-label="Send message"
           class="send-btn"
         >
-          <svg
-            class="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-          >
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
+          <SendHorizontal class="h-4 w-4" />
         </button>
       </div>
     </div>
@@ -280,7 +271,7 @@
         title="Close chat"
         class="mobile-close-btn"
       >
-        <CloseOutline class="h-5 w-5" />
+        <X class="h-5 w-5" />
       </button>
     </div>
   </div>

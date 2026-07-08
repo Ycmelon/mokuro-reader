@@ -1,6 +1,6 @@
 <script lang="ts">
   import Settings from '$lib/components/Settings/Settings.svelte';
-  import { UserSettingsSolid } from 'flowbite-svelte-icons';
+  import { Settings as SettingsIcon } from '@lucide/svelte';
 
   interface Props {
     visible?: boolean;
@@ -20,7 +20,7 @@
     onclick={openSettings}
     class="reader-hud fixed top-3 right-3 z-10 p-2 opacity-80 hover:text-primary-600 hover:opacity-100"
   >
-    <UserSettingsSolid size="xl" />
+    <SettingsIcon class="h-8 w-8" />
   </button>
 {/if}
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { AccordionItem, Label } from 'flowbite-svelte';
-  import { DownloadSolid, CheckCircleSolid, TrashBinSolid } from 'flowbite-svelte-icons';
+  import { Download, CircleCheck, Trash2 } from '@lucide/svelte';
   import { get } from 'svelte/store';
   import { settings, updateSetting, PRESETS, type ThemeTokens } from '$lib/settings';
 
@@ -78,16 +78,16 @@
               style:box-shadow="inset 0 0 0 1px {sw.tokens.muted}"
             ></span>
           {/snippet}
-          {#snippet roleIcon(color: string, Icon: typeof DownloadSolid)}
+          {#snippet roleIcon(color: string, Icon: typeof Download)}
             <span style:color><Icon class="h-4 w-4" /></span>
           {/snippet}
           <span class="flex flex-wrap items-center gap-1.5">
             {@render dot(sw.tokens.background)}
             {@render dot(sw.tokens.muted)}
             {@render dot(sw.tokens.accent)}
-            {@render roleIcon(sw.tokens.secondary, DownloadSolid)}
-            {@render roleIcon(sw.tokens.success, CheckCircleSolid)}
-            {@render roleIcon(sw.tokens.danger, TrashBinSolid)}
+            {@render roleIcon(sw.tokens.secondary, Download)}
+            {@render roleIcon(sw.tokens.success, CircleCheck)}
+            {@render roleIcon(sw.tokens.danger, Trash2)}
           </span>
         </button>
       {/each}

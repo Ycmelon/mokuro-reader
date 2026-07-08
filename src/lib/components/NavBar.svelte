@@ -1,12 +1,12 @@
 <script lang="ts">
   import { Navbar, NavBrand, Spinner } from 'flowbite-svelte';
   import {
-    CloudArrowUpOutline,
-    UploadSolid,
-    UserSettingsSolid,
-    RefreshOutline,
-    ChartLineUpOutline
-  } from 'flowbite-svelte-icons';
+    CloudUpload,
+    Upload,
+    Settings as SettingsIcon,
+    RefreshCw,
+    ChartNoAxesCombined
+  } from '@lucide/svelte';
   import { nav, isOnReader } from '$lib/util/hash-router';
   import Settings from './Settings/Settings.svelte';
   import UploadModal from './UploadModal.svelte';
@@ -147,13 +147,13 @@
         class="flex h-6 w-6 items-center justify-center"
         title="Reading Speed Stats"
       >
-        <ChartLineUpOutline class="h-6 w-6 cursor-pointer hover:text-primary-700" />
+        <ChartNoAxesCombined class="h-6 w-6 cursor-pointer hover:text-primary-700" />
       </button>
       <button onclick={openSettings} class="flex h-6 w-6 items-center justify-center">
-        <UserSettingsSolid class="h-6 w-6 cursor-pointer hover:text-primary-700" />
+        <SettingsIcon class="h-6 w-6 cursor-pointer hover:text-primary-700" />
       </button>
       <button onclick={openUploadModal} class="flex h-6 w-6 items-center justify-center">
-        <UploadSolid class="h-6 w-6 cursor-pointer hover:text-primary-700" />
+        <Upload class="h-6 w-6 cursor-pointer hover:text-primary-700" />
       </button>
       <button
         onclick={navigateToCloud}
@@ -169,21 +169,17 @@
                 : `${providerDisplayName} - Not connected`}
       >
         {#if providerState.needsAttention}
-          <CloudArrowUpOutline class="h-6 w-6 cursor-pointer text-red-600 hover:text-red-700" />
+          <CloudUpload class="h-6 w-6 cursor-pointer text-red-600 hover:text-red-700" />
         {:else if providerState.isCacheLoading && !providerState.isCacheLoaded}
           <Spinner size="4" />
         {:else if providerState.isFullyConnected}
-          <CloudArrowUpOutline class="h-6 w-6 cursor-pointer text-green-600 hover:text-green-700" />
+          <CloudUpload class="h-6 w-6 cursor-pointer text-green-600 hover:text-green-700" />
         {:else if providerState.isAuthenticated}
-          <CloudArrowUpOutline
-            class="h-6 w-6 cursor-pointer text-yellow-600 hover:text-yellow-700"
-          />
+          <CloudUpload class="h-6 w-6 cursor-pointer text-yellow-600 hover:text-yellow-700" />
         {:else if providerState.hasActiveProvider}
-          <CloudArrowUpOutline
-            class="h-6 w-6 cursor-pointer text-yellow-600 hover:text-yellow-700"
-          />
+          <CloudUpload class="h-6 w-6 cursor-pointer text-yellow-600 hover:text-yellow-700" />
         {:else}
-          <CloudArrowUpOutline class="h-6 w-6 cursor-pointer hover:text-primary-700" />
+          <CloudUpload class="h-6 w-6 cursor-pointer hover:text-primary-700" />
         {/if}
       </button>
       {#if isGoogleDrive && providerState.isAuthenticated && tokenMinutesLeft !== null}
@@ -209,7 +205,7 @@
           title={isSyncing ? 'Syncing...' : `Sync read progress with ${providerDisplayName}`}
           disabled={isSyncing}
         >
-          <RefreshOutline
+          <RefreshCw
             class="h-6 w-6 cursor-pointer hover:text-primary-700 {isSyncing ? 'animate-spin' : ''}"
           />
         </button>

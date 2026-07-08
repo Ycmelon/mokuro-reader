@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Modal, Button } from 'flowbite-svelte';
-  import { InfoCircleSolid } from 'flowbite-svelte-icons';
+  import { Info } from '@lucide/svelte';
   import { imageOnlyImportModalStore } from '$lib/util/modals';
 
   let open = $derived($imageOnlyImportModalStore?.open ?? false);
@@ -20,7 +20,7 @@
   <div class="flex flex-col gap-4">
     <!-- Header -->
     <div class="text-center">
-      <InfoCircleSolid class="mx-auto mb-4 h-12 w-12 text-blue-500" />
+      <Info class="mx-auto mb-4 h-12 w-12 text-blue-500" />
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Image-Only Import</h3>
     </div>
 

@@ -55,12 +55,7 @@
   } from '$lib/anki-server/mining';
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
   import { chatOpen, closeChat, openChatWithExplain } from '$lib/ai-chat/store';
-  import {
-    BackwardStepSolid,
-    CaretLeftSolid,
-    CaretRightSolid,
-    ForwardStepSolid
-  } from 'flowbite-svelte-icons';
+  import { SkipBack, ChevronLeft, ChevronRight, SkipForward } from '@lucide/svelte';
   import SettingsButton from './SettingsButton.svelte';
   import AiChatButton from './AiChatButton.svelte';
   import { getCharCount } from '$lib/util/count-chars';
@@ -1121,10 +1116,10 @@
       <div class="flex flex-col gap-3">
         <div class="z-10 flex flex-row items-center gap-5">
           <button onclick={() => changePage(volumeSettings.rightToLeft ? pages.length : 1, true)}>
-            <BackwardStepSolid class="hover:text-primary-600" size="sm" />
+            <SkipBack class="h-4 w-4 hover:text-primary-600" />
           </button>
           <button onclick={(e) => left(e, true)}>
-            <CaretLeftSolid class="hover:text-primary-600" size="sm" />
+            <ChevronLeft class="h-4 w-4 hover:text-primary-600" />
           </button>
           <Input
             type="number"
@@ -1143,10 +1138,10 @@
             onblur={onManualPageChange}
           />
           <button onclick={(e) => right(e, true)}>
-            <CaretRightSolid class="hover:text-primary-600" size="sm" />
+            <ChevronRight class="h-4 w-4 hover:text-primary-600" />
           </button>
           <button onclick={() => changePage(volumeSettings.rightToLeft ? 1 : pages.length, true)}>
-            <ForwardStepSolid class="hover:text-primary-600" size="sm" />
+            <SkipForward class="h-4 w-4 hover:text-primary-600" />
           </button>
         </div>
         <div style:direction={volumeSettings.rightToLeft ? 'rtl' : 'ltr'}>

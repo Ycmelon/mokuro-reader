@@ -11,7 +11,7 @@
   import { backupQueue } from '$lib/util/backup-queue';
   import { Alert, Badge, Button, Radio, Toggle, Spinner } from 'flowbite-svelte';
   import { onMount } from 'svelte';
-  import { GoogleSolid, InfoCircleSolid } from 'flowbite-svelte-icons';
+  import { LogIn, Info } from '@lucide/svelte';
   import { catalog } from '$lib/catalog';
   import type { VolumeMetadata } from '$lib/types';
 
@@ -618,7 +618,7 @@
               {#if googleDriveLoading}
                 <Spinner size="8" />
               {:else}
-                <GoogleSolid size="xl" />
+                <LogIn class="h-8 w-8" />
               {/if}
               <div class="flex-1 text-left">
                 <div class="text-lg font-semibold">Google Drive</div>
@@ -754,7 +754,7 @@
           {#if currentProvider === 'webdav' && webdavIsReadOnly}
             <Alert color="yellow" class="mb-4">
               {#snippet icon()}
-                <InfoCircleSolid class="h-5 w-5" />
+                <Info class="h-5 w-5" />
               {/snippet}
               <span class="font-medium">Read-only mode:</span> Your WebDAV server only allows read access.
               Upload, backup, and sync features are disabled.

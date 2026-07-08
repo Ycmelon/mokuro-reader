@@ -12,13 +12,7 @@
   } from '$lib/settings';
   import { promptConfirmation, showSnackbar } from '$lib/util';
   import { Input, Listgroup, ListgroupItem, Modal } from 'flowbite-svelte';
-  import {
-    CirclePlusSolid,
-    EditOutline,
-    FileCopySolid,
-    TrashBinSolid,
-    UserEditSolid
-  } from 'flowbite-svelte-icons';
+  import { CirclePlus, Pencil, CopyPlus, Trash2, UserPen } from '@lucide/svelte';
 
   interface Props {
     open?: boolean;
@@ -119,7 +113,7 @@
             <form onsubmit={preventDefault(onEdit)}>
               <Input size="sm" bind:value={newName} autofocus onclick={onInputClick}>
                 {#snippet right()}
-                  <EditOutline size="sm" onclick={onEdit} class="hover:text-primary-700" />
+                  <Pencil class="h-4 w-4 hover:text-primary-700" onclick={onEdit} />
                 {/snippet}
               </Input>
             </form>
@@ -131,18 +125,10 @@
           {/if}
         </div>
         <div class="flex flex-row items-center gap-2">
-          <FileCopySolid size="sm" class="hover:text-primary-700" onclick={() => onCopy(item)} />
+          <CopyPlus class="h-4 w-4 hover:text-primary-700" onclick={() => onCopy(item)} />
           {#if !isBuiltIn(item)}
-            <UserEditSolid
-              size="sm"
-              class="hover:text-primary-700"
-              onclick={() => onEditClicked(item)}
-            />
-            <TrashBinSolid
-              size="sm"
-              class="hover:text-primary-700"
-              onclick={() => onDelete(item)}
-            />
+            <UserPen class="h-4 w-4 hover:text-primary-700" onclick={() => onEditClicked(item)} />
+            <Trash2 class="h-4 w-4 hover:text-primary-700" onclick={() => onDelete(item)} />
           {/if}
         </div>
       </ListgroupItem>
@@ -151,7 +137,7 @@
   <form onsubmit={preventDefault(onSubmit)}>
     <Input type="text" placeholder="New profile..." bind:value={newProfile}>
       {#snippet right()}
-        <CirclePlusSolid class="hover:text-primary-700" onclick={onSubmit} />
+        <CirclePlus class="hover:text-primary-700" onclick={onSubmit} />
       {/snippet}
     </Input>
   </form>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { VolumeMetadata } from '$lib/types';
   import { Spinner } from 'flowbite-svelte';
-  import { DownloadSolid } from 'flowbite-svelte-icons';
+  import { Download } from '@lucide/svelte';
   import { fetchCloudThumbnail, getCachedCloudThumbnail } from '$lib/catalog/cloud-thumbnails';
 
   interface Props {
@@ -87,7 +87,7 @@
         {#if isDownloading}
           <Spinner size="4" color="blue" />
         {:else}
-          <DownloadSolid class="h-4 w-4 text-blue-400" />
+          <Download class="h-4 w-4 text-blue-400" />
         {/if}
       </div>
     {/if}
@@ -117,7 +117,7 @@
                 <Spinner size="16" color="blue" />
                 <span class="text-sm text-gray-300">Downloading...</span>
               {:else}
-                <DownloadSolid class="h-16 w-16 text-blue-400" />
+                <Download class="h-16 w-16 text-blue-400" />
                 <span class="text-sm text-gray-300">{message || 'Click to download'}</span>
               {/if}
             </div>

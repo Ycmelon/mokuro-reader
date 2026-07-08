@@ -1,11 +1,6 @@
 <script lang="ts">
   import { Dropdown, DropdownItem, DropdownDivider, Spinner } from 'flowbite-svelte';
-  import {
-    BookSolid,
-    CheckCircleSolid,
-    ExclamationCircleSolid,
-    CogOutline
-  } from 'flowbite-svelte-icons';
+  import { BookOpen, CircleCheck, CircleAlert, Settings } from '@lucide/svelte';
   import {
     libraries,
     selectedLibraryId,
@@ -51,11 +46,11 @@
     {#if isFetching}
       <Spinner size="4" />
     {:else if errorMap.size > 0}
-      <BookSolid class="h-6 w-6 cursor-pointer text-yellow-500 hover:text-yellow-600" />
+      <BookOpen class="h-6 w-6 cursor-pointer text-yellow-500 hover:text-yellow-600" />
     {:else if showSelector}
-      <BookSolid class="h-6 w-6 cursor-pointer text-primary-600 hover:text-primary-700" />
+      <BookOpen class="h-6 w-6 cursor-pointer text-primary-600 hover:text-primary-700" />
     {:else}
-      <BookSolid class="h-6 w-6 cursor-pointer hover:text-primary-700" />
+      <BookOpen class="h-6 w-6 cursor-pointer hover:text-primary-700" />
     {/if}
   </button>
 
@@ -67,7 +62,7 @@
         class="flex items-center gap-2 {!selected ? 'bg-gray-100 dark:bg-gray-700' : ''}"
       >
         {#if !selected}
-          <CheckCircleSolid class="h-4 w-4 text-primary-500" />
+          <CircleCheck class="h-4 w-4 text-primary-500" />
         {:else}
           <span class="w-4"></span>
         {/if}
@@ -85,13 +80,13 @@
             : ''}"
         >
           {#if selected === library.id}
-            <CheckCircleSolid class="h-4 w-4 text-primary-500" />
+            <CircleCheck class="h-4 w-4 text-primary-500" />
           {:else if errorMap.has(library.id)}
-            <ExclamationCircleSolid class="h-4 w-4 text-red-500" />
+            <CircleAlert class="h-4 w-4 text-red-500" />
           {:else if statusMap.get(library.id) === 'fetching'}
             <Spinner size="4" />
           {:else if statusMap.get(library.id) === 'ready'}
-            <CheckCircleSolid class="h-4 w-4 text-green-500" />
+            <CircleCheck class="h-4 w-4 text-green-500" />
           {:else}
             <span class="w-4"></span>
           {/if}
@@ -107,7 +102,7 @@
       onclick={goToLibraries}
       class="flex items-center gap-2 text-gray-500 dark:text-gray-400"
     >
-      <CogOutline class="h-4 w-4" />
+      <Settings class="h-4 w-4" />
       <span>Manage Libraries</span>
     </DropdownItem>
   </Dropdown>

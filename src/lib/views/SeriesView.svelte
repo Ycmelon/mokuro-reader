@@ -13,18 +13,18 @@
   import { nav, routeParams, navigateBack } from '$lib/util/hash-router';
   import { personalizedReadingSpeed } from '$lib/settings/reading-speed';
   import {
-    CloudArrowUpOutline,
-    TrashBinSolid,
-    DownloadSolid,
-    FileLinesOutline,
-    SortOutline,
-    GridOutline,
-    ListOutline,
-    DotsVerticalOutline,
-    EditOutline,
-    CloseOutline,
-    CheckOutline
-  } from 'flowbite-svelte-icons';
+    CloudUpload,
+    Trash2,
+    Download,
+    FileText,
+    ArrowDownUp,
+    LayoutGrid,
+    LayoutList,
+    MoreVertical,
+    Pencil,
+    X,
+    Check
+  } from '@lucide/svelte';
   import { executeRenameSeries } from '$lib/util/series-rename';
   import { backupQueue } from '$lib/util/backup-queue';
   import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
@@ -743,7 +743,7 @@
             {#if renameSaving}
               <Spinner size="5" />
             {:else}
-              <CheckOutline class="h-5 w-5" />
+              <Check class="h-5 w-5" />
             {/if}
           </button>
           <button
@@ -752,7 +752,7 @@
             class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
             title="Cancel"
           >
-            <CloseOutline class="h-5 w-5" />
+            <X class="h-5 w-5" />
           </button>
         </div>
         {#if renameError}
@@ -766,7 +766,7 @@
             class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
             title="Rename series"
           >
-            <EditOutline class="h-4 w-4" />
+            <Pencil class="h-4 w-4" />
           </button>
         </div>
       {/if}
@@ -796,7 +796,7 @@
       <!-- Cloud buttons - hidden in read-only mode -->
       {#if isCloudReady && !allBackedUp && !isReadOnlyMode}
         <Button color="light" onclick={backupSeries} class="!min-w-0 self-stretch">
-          <CloudArrowUpOutline class="me-2 h-4 w-4 shrink-0" />
+          <CloudUpload class="me-2 h-4 w-4 shrink-0" />
           <span class="break-words"
             >{anyBackedUp ? 'Backup remaining' : `Backup to ${providerDisplayName}`}</span
           >
@@ -804,12 +804,12 @@
       {/if}
 
       <Button color="light" onclick={onDelete} class="!min-w-0 self-stretch">
-        <TrashBinSolid class="me-2 h-4 w-4 shrink-0" />
+        <Trash2 class="me-2 h-4 w-4 shrink-0" />
         <span class="break-words">Remove manga</span>
       </Button>
 
       <Button color="light" onclick={toggleSortMode} class="!min-w-0 self-stretch">
-        <SortOutline class="me-2 h-5 w-5 shrink-0" />
+        <ArrowDownUp class="me-2 h-5 w-5 shrink-0" />
         <span class="break-words">
           {#if sortMode === 'unread-first'}
             Unread first
@@ -823,17 +823,17 @@
 
       <Button color="light" onclick={toggleViewMode} class="!min-w-0 self-stretch">
         {#if viewMode === 'list'}
-          <GridOutline class="me-2 h-5 w-5 shrink-0" />
+          <LayoutGrid class="me-2 h-5 w-5 shrink-0" />
           <span class="break-words">Grid</span>
         {:else}
-          <ListOutline class="me-2 h-5 w-5 shrink-0" />
+          <LayoutList class="me-2 h-5 w-5 shrink-0" />
           <span class="break-words">List</span>
         {/if}
       </Button>
 
       <!-- More options menu -->
       <Button id="series-menu" color="light" class="!min-w-0 !p-2.5">
-        <DotsVerticalOutline class="h-5 w-5" />
+        <MoreVertical class="h-5 w-5" />
       </Button>
       <Dropdown triggeredBy="#series-menu" placement="bottom-end">
         {#if isCloudReady && anyBackedUp && !isReadOnlyMode}
@@ -841,7 +841,7 @@
             onclick={onDeleteFromCloud}
             class="flex w-full items-center text-red-500 hover:!text-red-500 dark:hover:!text-red-500"
           >
-            <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0" />
+            <Trash2 class="me-2 h-5 w-5 flex-shrink-0" />
             <span class="flex-1 text-left">Delete from {providerDisplayName}</span>
           </DropdownItem>
         {/if}
@@ -850,14 +850,14 @@
           disabled={loading}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
         >
-          <DownloadSolid class="me-2 h-5 w-5 flex-shrink-0" />
+          <Download class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">{loading ? 'Extracting...' : 'Extract'}</span>
         </DropdownItem>
         <DropdownItem
           onclick={goToSeriesText}
           class="flex w-full items-center text-gray-700 dark:text-gray-200"
         >
-          <FileLinesOutline class="me-2 h-5 w-5 flex-shrink-0" />
+          <FileText class="me-2 h-5 w-5 flex-shrink-0" />
           <span class="flex-1 text-left">View Series Text</span>
         </DropdownItem>
       </Dropdown>
@@ -873,7 +873,7 @@
               Duplicates found in {providerDisplayName} ({duplicateCloudFiles.length})
             </h4>
             <Button size="xs" color="red" onclick={cleanCloudDuplicates}>
-              <TrashBinSolid class="me-1 h-3 w-3" />
+              <Trash2 class="me-1 h-3 w-3" />
               Clean Duplicates
             </Button>
           </div>
@@ -892,7 +892,7 @@
             </h4>
             {#if hasAnyProvider}
               <Button size="xs" color="blue" onclick={downloadAllPlaceholders}>
-                <DownloadSolid class="me-1 h-3 w-3" />
+                <Download class="me-1 h-3 w-3" />
                 Download all
               </Button>
             {/if}
@@ -919,7 +919,7 @@
               Available in {providerDisplayName} ({placeholders.length})
             </h4>
             <Button size="xs" color="blue" onclick={downloadAllPlaceholders}>
-              <DownloadSolid class="me-1 h-3 w-3" />
+              <Download class="me-1 h-3 w-3" />
               Download all
             </Button>
           </div>
@@ -951,28 +951,28 @@
     <div class="flex flex-row items-stretch justify-end gap-2">
       {#if hasAnyProvider}
         <Button color="primary" onclick={downloadAllPlaceholders} class="!min-w-0 self-stretch">
-          <DownloadSolid class="me-2 h-4 w-4 shrink-0" />
+          <Download class="me-2 h-4 w-4 shrink-0" />
           <span class="break-words">Download All</span>
         </Button>
       {:else}
         <Button color="light" disabled class="!min-w-0 self-stretch">
-          <DownloadSolid class="me-2 h-4 w-4 shrink-0" />
+          <Download class="me-2 h-4 w-4 shrink-0" />
           <span class="break-words">Sign in to download</span>
         </Button>
       {/if}
 
       <Button color="light" onclick={toggleViewMode} class="!min-w-0 self-stretch">
         {#if viewMode === 'list'}
-          <GridOutline class="me-2 h-5 w-5 shrink-0" />
+          <LayoutGrid class="me-2 h-5 w-5 shrink-0" />
           <span class="break-words">Grid</span>
         {:else}
-          <ListOutline class="me-2 h-5 w-5 shrink-0" />
+          <LayoutList class="me-2 h-5 w-5 shrink-0" />
           <span class="break-words">List</span>
         {/if}
       </Button>
 
       <Button id="placeholder-series-menu" color="light" class="!min-w-0 !p-2.5">
-        <DotsVerticalOutline class="h-5 w-5" />
+        <MoreVertical class="h-5 w-5" />
       </Button>
       <Dropdown triggeredBy="#placeholder-series-menu" placement="bottom-end">
         {#if hasAnyProvider && !isReadOnlyMode}
@@ -980,7 +980,7 @@
             onclick={onDeleteFromCloud}
             class="flex w-full items-center text-red-500 hover:!text-red-500 dark:hover:!text-red-500"
           >
-            <TrashBinSolid class="me-2 h-5 w-5 flex-shrink-0" />
+            <Trash2 class="me-2 h-5 w-5 flex-shrink-0" />
             <span class="flex-1 text-left">Delete from {providerDisplayName}</span>
           </DropdownItem>
         {/if}

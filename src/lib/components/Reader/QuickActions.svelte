@@ -2,13 +2,7 @@
   import { toggleFullScreen } from '$lib/util/fullscreen';
   import { pagedZoom } from '$lib/reader/paged-zoom';
   import { settings, updateSetting } from '$lib/settings';
-  import {
-    ArrowLeftOutline,
-    ArrowRightOutline,
-    CompressOutline,
-    ZoomOutOutline,
-    PlusOutline
-  } from 'flowbite-svelte-icons';
+  import { ArrowLeft, ArrowRight, Minimize2, ZoomOut, Plus } from '@lucide/svelte';
 
   interface Props {
     left: (_e: any, ingoreTimeOut?: boolean) => void;
@@ -60,28 +54,28 @@
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           aria-label="Toggle fullscreen"
         >
-          <CompressOutline size="xl" />
+          <Minimize2 class="h-6 w-6" />
         </button>
         <button
           onclick={handleZoom}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           aria-label="Zoom to fit"
         >
-          <ZoomOutOutline size="xl" />
+          <ZoomOut class="h-6 w-6" />
         </button>
         <button
           onclick={handleRight}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           aria-label="Next page"
         >
-          <ArrowRightOutline size="xl" />
+          <ArrowRight class="h-6 w-6" />
         </button>
         <button
           onclick={handleLeft}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           aria-label="Previous page"
         >
-          <ArrowLeftOutline size="xl" />
+          <ArrowLeft class="h-6 w-6" />
         </button>
       </div>
     {/if}
@@ -93,7 +87,7 @@
       aria-label="Quick actions menu"
       style="transition: transform 0.3s ease; transform: rotate({open ? 45 : 0}deg);"
     >
-      <PlusOutline size="xl" />
+      <Plus class="h-6 w-6" />
     </button>
   </div>
 {/if}

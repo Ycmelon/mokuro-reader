@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Spinner } from 'flowbite-svelte';
-  import { CloudArrowUpOutline, TrashBinSolid } from 'flowbite-svelte-icons';
+  import { CloudUpload, Trash2 } from '@lucide/svelte';
   import { showSnackbar } from '$lib/util';
   import { unifiedCloudManager } from '$lib/util/sync/unified-cloud-manager';
   import { providerManager } from '$lib/util/sync';
@@ -165,7 +165,7 @@
     onclick={handleDelete}
     title={`Delete from ${providerDisplayName}`}
   >
-    <TrashBinSolid class="me-2 h-4 w-4" />
+    <Trash2 class="me-2 h-4 w-4" />
     Delete from {providerDisplayName}
   </Button>
 {:else if isQueued}
@@ -186,7 +186,7 @@
     onclick={handleBackup}
     title={`Backup to ${providerDisplayName}`}
   >
-    <CloudArrowUpOutline class="me-2 h-4 w-4" />
+    <CloudUpload class="me-2 h-4 w-4" />
     Backup to {providerDisplayName}
   </Button>
 {/if}

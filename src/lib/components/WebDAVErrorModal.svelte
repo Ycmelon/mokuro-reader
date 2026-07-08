@@ -2,7 +2,7 @@
   import { browser } from '$app/environment';
   import { webdavErrorModalStore, closeWebDAVError } from '$lib/util/modals';
   import { Modal, Button, AccordionItem, Accordion } from 'flowbite-svelte';
-  import { ExclamationCircleOutline, ClipboardListOutline } from 'flowbite-svelte-icons';
+  import { CircleAlert, ClipboardList } from '@lucide/svelte';
   import { showSnackbar } from '$lib/util/snackbar';
   import type { WebDAVErrorType } from '$lib/util/modals';
 
@@ -52,7 +52,7 @@ Access-Control-Allow-Credentials: true`);
   <div class="flex flex-col gap-4">
     <!-- Header -->
     <div class="flex items-center gap-3">
-      <ExclamationCircleOutline class="h-8 w-8 text-red-500" />
+      <CircleAlert class="h-8 w-8 text-red-500" />
       <h3 class="text-xl font-semibold">
         WebDAV Error: {errorTitles[$webdavErrorModalStore?.errorType ?? 'unknown']}
       </h3>
@@ -106,7 +106,7 @@ Access-Control-Allow-Credentials: true`);
                     onclick={() => copyToClipboard(requiredHeaders)}
                     title="Copy to clipboard"
                   >
-                    <ClipboardListOutline class="h-4 w-4" />
+                    <ClipboardList class="h-4 w-4" />
                   </button>
                 </div>
               </div>

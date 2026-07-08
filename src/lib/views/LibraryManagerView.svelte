@@ -1,14 +1,6 @@
 <script lang="ts">
   import { Button, Card, Spinner, Badge } from 'flowbite-svelte';
-  import {
-    CirclePlusSolid,
-    RefreshOutline,
-    TrashBinSolid,
-    PenSolid,
-    CheckCircleSolid,
-    ExclamationCircleSolid,
-    ArrowLeftOutline
-  } from 'flowbite-svelte-icons';
+  import { CirclePlus, RefreshCw, Trash2, Pencil, ArrowLeft } from '@lucide/svelte';
   import { nav } from '$lib/util/hash-router';
   import { libraries, removeLibrary, type LibraryConfig } from '$lib/settings/libraries';
   import {
@@ -128,7 +120,7 @@
   <div class="mb-6 flex items-center justify-between">
     <div class="flex items-center gap-4">
       <button onclick={goBack} class="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
-        <ArrowLeftOutline class="h-5 w-5" />
+        <ArrowLeft class="h-5 w-5" />
       </button>
       <div>
         <h1 class="text-2xl font-bold dark:text-white">Libraries</h1>
@@ -147,13 +139,13 @@
           {#if refreshingAll}
             <Spinner size="4" class="me-2" />
           {:else}
-            <RefreshOutline class="me-2 h-4 w-4" />
+            <RefreshCw class="me-2 h-4 w-4" />
           {/if}
           Refresh All
         </Button>
       {/if}
       <Button color="primary" size="sm" onclick={openAddLibrary}>
-        <CirclePlusSolid class="me-2 h-4 w-4" />
+        <CirclePlus class="me-2 h-4 w-4" />
         Add Library
       </Button>
     </div>
@@ -167,7 +159,7 @@
         servers.
       </p>
       <Button color="primary" onclick={openAddLibrary}>
-        <CirclePlusSolid class="me-2 h-4 w-4" />
+        <CirclePlus class="me-2 h-4 w-4" />
         Add Your First Library
       </Button>
     </Card>
@@ -208,11 +200,11 @@
                 {#if isRefreshing}
                   <Spinner size="4" />
                 {:else}
-                  <RefreshOutline class="h-4 w-4" />
+                  <RefreshCw class="h-4 w-4" />
                 {/if}
               </Button>
               <Button color="light" size="xs" onclick={() => handleEdit(library)} title="Edit">
-                <PenSolid class="h-4 w-4" />
+                <Pencil class="h-4 w-4" />
               </Button>
               <Button
                 color="light"
@@ -221,7 +213,7 @@
                 title="Remove"
                 class="text-red-500 hover:text-red-600"
               >
-                <TrashBinSolid class="h-4 w-4" />
+                <Trash2 class="h-4 w-4" />
               </Button>
             </div>
           </div>

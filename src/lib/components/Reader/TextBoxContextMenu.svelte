@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CreditCardPlusOutline, MessagesOutline } from 'flowbite-svelte-icons';
+  import { BadgePlus, ClipboardList, Copy, MessagesSquare, SquareCheck } from '@lucide/svelte';
   import { showSnackbar } from '$lib/util';
 
   interface Props {
@@ -215,55 +215,36 @@
   {#if hasSelection}
     <!-- Selection-specific options -->
     <button type="button" class="menu-item" onpointerup={copySelection}>
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-      </svg>
+      <Copy class="h-4 w-4 flex-shrink-0" />
       <span>Copy selection</span>
     </button>
     <button type="button" class="menu-item" onpointerup={copySelectionRaw}>
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        <line x1="12" y1="13" x2="19" y2="13"></line>
-        <line x1="12" y1="17" x2="19" y2="17"></line>
-      </svg>
+      <ClipboardList class="h-4 w-4 flex-shrink-0" />
       <span>Copy selection with line breaks</span>
     </button>
     <div class="divider"></div>
   {/if}
   <!-- Always show copy all options -->
   <button type="button" class="menu-item" onpointerup={copyAll}>
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-    </svg>
+    <Copy class="h-4 w-4 flex-shrink-0" />
     <span>Copy all</span>
   </button>
   <button type="button" class="menu-item" onpointerup={copyAllRaw}>
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-      <line x1="12" y1="13" x2="19" y2="13"></line>
-      <line x1="12" y1="17" x2="19" y2="17"></line>
-    </svg>
+    <ClipboardList class="h-4 w-4 flex-shrink-0" />
     <span>Copy all with line breaks</span>
   </button>
   <div class="divider"></div>
   <button type="button" class="menu-item" onpointerup={handleSelect}>
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M9 11l3 3L22 4"></path>
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-    </svg>
+    <SquareCheck class="h-4 w-4 flex-shrink-0" />
     <span>Select</span>
   </button>
   <button type="button" class="menu-item" onpointerup={handleCreateFlashcard}>
-    <CreditCardPlusOutline size="sm" />
+    <BadgePlus class="h-4 w-4 flex-shrink-0" />
     <span>Create flashcard</span>
   </button>
   <div class="divider"></div>
   <button type="button" class="menu-item" onpointerup={handleExplain}>
-    <MessagesOutline size="sm" />
+    <MessagesSquare class="h-4 w-4 flex-shrink-0" />
     <span>Explain</span>
   </button>
 </div>
@@ -304,12 +285,6 @@
     font-size: inherit;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-  }
-
-  .icon {
-    width: 1rem;
-    height: 1rem;
-    flex-shrink: 0;
   }
 
   .menu-item:hover {

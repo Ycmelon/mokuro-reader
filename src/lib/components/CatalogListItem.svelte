@@ -3,7 +3,7 @@
   import { ListgroupItem, Spinner } from 'flowbite-svelte';
   import { progress } from '$lib/settings';
   import { volumes as catalogVolumes } from '$lib/catalog';
-  import { DownloadSolid } from 'flowbite-svelte-icons';
+  import { Download } from '@lucide/svelte';
   import { downloadQueue } from '$lib/util/download-queue';
   import { nav } from '$lib/util/hash-router';
   import { onDestroy } from 'svelte';
@@ -112,7 +112,7 @@
               {#if isDownloading}
                 <Spinner size="12" color="blue" />
               {:else}
-                <DownloadSolid class="h-[70px] w-[50px] text-blue-400" />
+                <Download class="h-[70px] w-[50px] text-blue-400" />
               {/if}
             </div>
           {:else if thumbnailUrl}

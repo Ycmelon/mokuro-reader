@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Modal, Button } from 'flowbite-svelte';
-  import { ExclamationCircleSolid } from 'flowbite-svelte-icons';
+  import { CircleAlert } from '@lucide/svelte';
   import { missingFilesModalStore } from '$lib/util/modals';
 
   let open = $derived($missingFilesModalStore?.open ?? false);
@@ -20,7 +20,7 @@
   <div class="flex flex-col gap-4">
     <!-- Header -->
     <div class="text-center">
-      <ExclamationCircleSolid class="mx-auto mb-4 h-12 w-12 text-yellow-500" />
+      <CircleAlert class="mx-auto mb-4 h-12 w-12 text-yellow-500" />
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Missing Image Files</h3>
     </div>
 

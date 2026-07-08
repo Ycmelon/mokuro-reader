@@ -4,13 +4,7 @@
   import { Button, Listgroup, Search } from 'flowbite-svelte';
   import CatalogItem from './CatalogItem.svelte';
   import Loader from './Loader.svelte';
-  import {
-    GridOutline,
-    ListOutline,
-    SortOutline,
-    DownloadSolid,
-    UploadSolid
-  } from 'flowbite-svelte-icons';
+  import { LayoutGrid, LayoutList, ArrowDownUp, Download, Upload } from '@lucide/svelte';
   import { miscSettings, updateMiscSetting, volumes } from '$lib/settings';
   import CatalogListItem from './CatalogListItem.svelte';
   import { isUpgrading } from '$lib/catalog/db';
@@ -292,9 +286,9 @@
         class="flex h-10 min-w-10 items-center justify-center"
       >
         {#if $miscSettings.galleryLayout === 'list'}
-          <GridOutline class="h-5 w-5" />
+          <LayoutGrid class="h-5 w-5" />
         {:else}
-          <ListOutline class="h-5 w-5" />
+          <LayoutList class="h-5 w-5" />
         {/if}
       </Button>
       <Button
@@ -303,7 +297,7 @@
         onclick={onOrder}
         class="flex h-10 min-w-10 items-center justify-center"
       >
-        <SortOutline class="h-5 w-5" />
+        <ArrowDownUp class="h-5 w-5" />
         <span class="ml-1 text-xs">
           {#if $miscSettings.gallerySorting === 'ASC'}
             A-Z
@@ -349,7 +343,7 @@
             </div>
             {#if hasAuthenticatedProvider && allPlaceholderVolumes.length > 0}
               <Button size="sm" color="blue" onclick={downloadAllPlaceholders}>
-                <DownloadSolid class="me-1 h-3 w-3" />
+                <Download class="me-1 h-3 w-3" />
                 Download all
               </Button>
             {/if}
@@ -380,7 +374,7 @@
     {:else}
       <p>Your catalog is currently empty.</p>
       <p class="text-sm text-gray-500">
-        To add manga, click the <UploadSolid class="inline h-4 w-4" /> button in the top right.
+        To add manga, click the <Upload class="inline h-4 w-4" /> button in the top right.
       </p>
     {/if}
   </div>

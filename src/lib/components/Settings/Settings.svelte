@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Accordion, Button, Drawer } from 'flowbite-svelte';
-  import { UserSettingsSolid } from 'flowbite-svelte-icons';
+  import { Settings as SettingsIcon } from '@lucide/svelte';
   import { sineIn } from 'svelte/easing';
   import { resetSettings } from '$lib/settings';
   import { isReader, promptConfirmation } from '$lib/util';
@@ -83,7 +83,7 @@
     id="drawer-label"
     class="mb-4 inline-flex items-center text-base font-semibold text-gray-900 dark:text-white"
   >
-    <UserSettingsSolid class="mr-2.5 h-4 w-4" />Settings
+    <SettingsIcon class="mr-2.5 h-4 w-4" />Settings
   </h5>
   <div class="flex flex-col gap-5">
     <Accordion flush>

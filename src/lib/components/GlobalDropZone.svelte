@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { CloudUpload } from '@lucide/svelte';
   import { scanFiles } from '$lib/upload';
   import { importFiles } from '$lib/import';
   import { showSnackbar } from '$lib/util/snackbar';
@@ -142,14 +143,7 @@
     <div
       class="flex flex-col items-center gap-4 rounded-2xl border-4 border-dashed border-primary-500 bg-gray-800/90 p-12"
     >
-      <svg class="h-16 w-16 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-        />
-      </svg>
+      <CloudUpload class="h-16 w-16 text-primary-500" />
       <p class="text-xl font-semibold text-white">Drop files to import</p>
       <p class="text-sm text-gray-400">.cbz, .zip, or folders with manga</p>
     </div>

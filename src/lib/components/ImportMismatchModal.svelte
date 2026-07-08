@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Modal, Button, AccordionItem, Accordion } from 'flowbite-svelte';
-  import { ExclamationCircleSolid } from 'flowbite-svelte-icons';
+  import { CircleAlert } from '@lucide/svelte';
   import { importMismatchModalStore, type ImportMismatchInfo } from '$lib/util/modals';
 
   let open = $derived($importMismatchModalStore?.open ?? false);
@@ -37,7 +37,7 @@
   <div class="flex flex-col gap-4">
     <!-- Header -->
     <div class="text-center">
-      <ExclamationCircleSolid class="mx-auto mb-4 h-12 w-12 text-red-500" />
+      <CircleAlert class="mx-auto mb-4 h-12 w-12 text-red-500" />
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
         {isSingleVolume ? 'Import Failed' : `${volumes.length} Import(s) Failed`}
       </h3>

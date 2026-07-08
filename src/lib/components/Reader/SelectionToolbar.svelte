@@ -16,7 +16,7 @@
     finishSentenceReselect,
     sentenceReselecting
   } from '$lib/anki-server/mining';
-  import { CreditCardPlusOutline, FileCopyOutline, MessagesOutline } from 'flowbite-svelte-icons';
+  import { StickyNotePlus, Copy, MessageSquareShare } from '@lucide/svelte';
 
   interface Props {
     onCreateFlashcard?: (text: string, entries: TextSelectionEntry[]) => void;
@@ -95,7 +95,7 @@
           aria-label="Copy selection"
           title="Copy"
         >
-          <FileCopyOutline size="md" />
+          <Copy class="h-5 w-5" />
         </button>
         <button
           onclick={explainAll}
@@ -104,7 +104,7 @@
           aria-label="Explain selection"
           title="Explain"
         >
-          <MessagesOutline size="md" />
+          <MessageSquareShare class="h-5 w-5" />
         </button>
         <button
           onclick={createFlashcard}
@@ -113,7 +113,7 @@
           aria-label="Create flashcard"
           title="Create flashcard"
         >
-          <CreditCardPlusOutline size="md" />
+          <StickyNotePlus class="h-5 w-5" />
         </button>
       </div>
 

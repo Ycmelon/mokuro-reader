@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Button, Modal, Spinner, Helper, Label, Input } from 'flowbite-svelte';
-  import { CheckCircleSolid, ExclamationCircleSolid } from 'flowbite-svelte-icons';
+  import { CircleCheck, CircleAlert } from '@lucide/svelte';
   import {
     addLibraryModalStore,
     closeAddLibraryModal,
@@ -304,10 +304,10 @@
             : 'bg-red-50 dark:bg-red-900/20'}"
         >
           {#if testResult === 'success'}
-            <CheckCircleSolid class="h-5 w-5 text-green-500" />
+            <CircleCheck class="h-5 w-5 text-green-500" />
             <span class="text-green-700 dark:text-green-400">Connection successful!</span>
           {:else}
-            <ExclamationCircleSolid class="h-5 w-5 text-red-500" />
+            <CircleAlert class="h-5 w-5 text-red-500" />
             <span class="text-red-700 dark:text-red-400">{testError || 'Connection failed'}</span>
           {/if}
         </div>
