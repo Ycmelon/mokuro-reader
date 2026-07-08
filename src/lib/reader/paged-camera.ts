@@ -264,25 +264,46 @@ export class PagedCamera {
 
   /**
    * Where the content under `point` will actually sit after zooming to
+   * `userZoomTarget` while trying to place it at `desired` — i.e. the desired
+   * position pulled back inside the camera's strict bounds.
+   */
+  projectClamped(point: Translate, userZoomTarget: number, desired: Translate): Translate {
+    const content = this.content;
+    if (!content) return point;
+    const s = this.effectiveScale;
+    const sNext = this.base.scale * userZoomTarget;
+    const c = { x: (point.x - this.tx) / s, y: (point.y - this.ty) / s };
+    const t = this.clampedAtZoom(
+      {
+        x: desired.x - c.x * sNext,
+        y: desired.y - c.y * sNext
+      },
+      userZoomTarget
+    );
+    return { x: c.x * sNext + t.x, y: c.y * sNext + t.y };
+  }
+
+  /**
+   * Where the content under `point` will actually sit after zooming to
    * `userZoomTarget` while trying to center it — i.e. the centered position
    * pulled back inside the camera's bounds. Double-tap animates toward THIS
    * point: lerping toward the raw viewport center fights the clamp near
    * edges and the view wiggles as the correction and the clamp disagree.
    */
   projectCentered(point: Translate, userZoomTarget: number): Translate {
-    const content = this.content;
-    if (!content) return point;
     const viewport = this.config.getViewport();
-    const s = this.effectiveScale;
-    const sNext = this.base.scale * userZoomTarget;
-    const c = { x: (point.x - this.tx) / s, y: (point.y - this.ty) / s };
-    const scaled = { width: content.width * sNext, height: content.height * sNext };
-    const want = {
-      x: viewport.width / 2 - c.x * sNext,
-      y: viewport.height / 2 - c.y * sNext
-    };
-    const t = this.config.isClampingEnabled() ? clampTranslate(want, scaled, viewport) : want;
-    return { x: c.x * sNext + t.x, y: c.y * sNext + t.y };
+    return this.projectClamped(point, userZoomTarget, {
+      x: viewport.width / 2,
+      y: viewport.height / 2
+    });
+  }
+
+  private clampedAtZoom(translate: Translate, userZoom: number): Translate {
+    const content = this.content;
+    if (!this.config.isClampingEnabled() || !content) return translate;
+    const s = this.base.scale * userZoom;
+    const scaled = { width: content.width * s, height: content.height * s };
+    return clampTranslate(translate, scaled, this.config.getViewport());
   }
 
   /** The controller-facing surface: user zoom in, view corrections out. */

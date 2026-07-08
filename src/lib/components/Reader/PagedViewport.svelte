@@ -165,14 +165,16 @@
   function doubleTap(x: number, y: number) {
     const levels = pagedLevels(session.baseScale, session.fitScale);
     const target = doubleTapTarget(controller.currentZoom, levels[0]);
+    const point = { x, y };
     motion.beforeZoom();
-    // Zooming in animates the tapped content toward the CLAMPED center
-    // position — aiming at the raw center fights the bounds near edges.
-    controller.animateToLevel(
-      target,
-      { x, y },
-      target >= 2 ? camera.projectCentered({ x, y }, target) : { x, y }
-    );
+    // Aim at where the tapped content can actually land after clamping. For
+    // reset-to-100%, this prevents zoomed reachable-overpan from snapping
+    // after the zoom animation settles.
+    const projected =
+      target >= 2
+        ? camera.projectCentered(point, target)
+        : camera.projectClamped(point, target, point);
+    controller.animateToLevel(target, point, projected);
   }
 
   function scrollImage(direction: 'up' | 'down') {

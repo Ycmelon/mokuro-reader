@@ -318,6 +318,20 @@ describe('PagedCamera — projectCentered (double-tap target)', () => {
     expect(p.x).toBeCloseTo(800, 4);
     expect(p.y).toBeCloseTo(450, 4);
   });
+
+  it('projects reset taps to their strict 100% landing point', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2);
+    camera.adjustView(0, -1000); // pull the page down into reachable overpan
+
+    const tap = { x: 800, y: 450 };
+    const p = camera.projectClamped(tap, 1, tap);
+
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
+    expect(p.x).toBeCloseTo(800, 4);
+    expect(p.y).toBeCloseTo(90, 4);
+  });
 });
 
 describe('PagedCamera — fitting axes center (top-pin bug)', () => {
