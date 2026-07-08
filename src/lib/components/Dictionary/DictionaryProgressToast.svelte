@@ -10,30 +10,49 @@
   let allReady = $derived(statuses.length > 0 && statuses.every((s) => s.state === 'ready'));
   let total = $derived(statuses.length);
   let stepIndex = $derived(statuses.filter((s) => s.state === 'ready').length + 1);
+  let activePresent = $derived(Boolean(active));
 
   let dismissed = $state(false);
+  let showProgress = $state(false);
   let showSuccess = $state(false);
-  // Whether a download/import actually happened this session — used so the
-  // success flash only appears after real work, not on launches where the
-  // dictionaries were already cached and healthy.
-  let hadActivity = $state(false);
+  let showedProgress = $state(false);
+
+  const PROGRESS_DISPLAY_DELAY_MS = 3000;
 
   $effect(() => {
-    if (active || errored.length > 0) {
+    if (activePresent || errored.length > 0) {
       dismissed = false; // re-show the toast whenever work (re)starts
-      hadActivity = true;
     }
   });
 
-  // Briefly flash a success message once everything is ready, then hide.
+  // Keep normal cached launches quiet: only show progress if dictionary work is
+  // still ongoing after a short delay. Errors bypass this delay below.
   $effect(() => {
-    if (!allReady || !hadActivity) return;
+    if (!activePresent) {
+      showProgress = false;
+      return;
+    }
+
+    const t = setTimeout(() => {
+      showProgress = true;
+      showedProgress = true;
+    }, PROGRESS_DISPLAY_DELAY_MS);
+
+    return () => clearTimeout(t);
+  });
+
+  // Briefly flash success only after progress was visible; fast cached launches
+  // finish silently.
+  $effect(() => {
+    if (!allReady || !showedProgress) return;
     showSuccess = true;
     const t = setTimeout(() => (showSuccess = false), 4000);
     return () => clearTimeout(t);
   });
 
-  let visible = $derived(!dismissed && (!!active || errored.length > 0 || showSuccess));
+  let visible = $derived(
+    !dismissed && ((!!active && showProgress) || errored.length > 0 || showSuccess)
+  );
 
   function retry() {
     ensureBundledDictionaries().catch(() => {
