@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import {
     dictPopup,
     popupStack,
@@ -11,9 +12,20 @@
   import Definitions from './Definitions.svelte';
   import PitchAccent from './PitchAccent.svelte';
   import Star from './Star.svelte';
-  import { miscSettings, settings } from '$lib/settings';
-  import { startMining } from '$lib/anki-server/mining';
+  import { miscSettings, settings, updateMiscSetting } from '$lib/settings';
+  import { miningContext, startMining } from '$lib/anki-server/mining';
+  import { openChatWithExplain } from '$lib/ai-chat/store';
+  import { copyTextToClipboard, showSnackbar } from '$lib/util';
+  import { Copy, MessageSquareShare, StickyNotePlus } from '@lucide/svelte';
   import type { LookupResult } from '$lib/dictionary/types';
+
+  const MIN_POPUP_HEIGHT = 15;
+  const MAX_POPUP_HEIGHT = 80;
+  const MIN_POPUP_WIDTH = 360;
+  const MAX_POPUP_WIDTH = 960;
+  const POPUP_EDGE_MARGIN = 16;
+  const KEYBOARD_RESIZE_STEP = 5;
+  const KEYBOARD_WIDTH_RESIZE_STEP = 40;
 
   let pitchMode = $derived($miscSettings.pitchAccentDisplay ?? 'downstep');
 
@@ -31,9 +43,21 @@
   );
 
   let popupEl: HTMLElement | undefined = $state();
+  let heightResizeHandleEl: HTMLElement | undefined = $state();
+  let widthResizeHandleEl: HTMLElement | undefined = $state();
+  let activeResize: 'height' | 'width' | null = $state(null);
+  let resizePointerId: number | null = null;
+  let previousBodyCursor = '';
+  let previousBodyUserSelect = '';
   let popup = $derived($dictPopup);
   let canGoBack = $derived($popupStack.length > 0);
   let popupHeight = $derived($miscSettings.dictionaryPopupHeight ?? 30);
+  let popupWidth = $derived($miscSettings.dictionaryPopupWidth ?? 720);
+  let livePopupHeight: number | null = $state(null);
+  let livePopupWidth: number | null = $state(null);
+  let visiblePopupHeight = $derived(livePopupHeight ?? popupHeight);
+  let visiblePopupWidth = $derived(livePopupWidth ?? popupWidth);
+  let lookupContext = $derived($miningContext);
 
   // Japanese text uses the bundled textbook font unless the user opts out, in
   // which case it falls back to the pre-bundle stacks. Driven as CSS variables
@@ -71,6 +95,191 @@
     }
   }
 
+  async function copyLookupFocus(): Promise<void> {
+    if (!lookupContext?.focus) return;
+    await copyTextToClipboard(lookupContext.focus);
+    showSnackbar('Copied to clipboard');
+  }
+
+  function explainLookupFocus(): void {
+    if (!lookupContext) return;
+    const text = `${lookupContext.sentence}\n「${lookupContext.focus}」`;
+    openChatWithExplain(text);
+    closePopup();
+  }
+
+  function createFlashcard(): void {
+    startMining();
+    closePopup();
+  }
+
+  function clampPopupHeight(height: number): number {
+    return Math.min(MAX_POPUP_HEIGHT, Math.max(MIN_POPUP_HEIGHT, height));
+  }
+
+  function maxPopupWidth(): number {
+    if (typeof window === 'undefined') return MAX_POPUP_WIDTH;
+    return Math.min(MAX_POPUP_WIDTH, Math.max(0, window.innerWidth - POPUP_EDGE_MARGIN * 2));
+  }
+
+  function clampPopupWidth(width: number): number {
+    const maxWidth = maxPopupWidth();
+    const minWidth = Math.min(MIN_POPUP_WIDTH, maxWidth);
+    return Math.min(maxWidth, Math.max(minWidth, width));
+  }
+
+  function heightFromClientY(clientY: number): number | null {
+    if (window.innerHeight <= 0) return null;
+    return clampPopupHeight(((window.innerHeight - clientY) / window.innerHeight) * 100);
+  }
+
+  function widthFromClientX(clientX: number): number | null {
+    if (window.innerWidth <= 0) return null;
+    return clampPopupWidth((clientX - window.innerWidth / 2) * 2);
+  }
+
+  function persistPopupHeight(height: number): void {
+    const nextHeight = Number(clampPopupHeight(height).toFixed(1));
+    if (nextHeight !== popupHeight) updateMiscSetting('dictionaryPopupHeight', nextHeight);
+  }
+
+  function persistPopupWidth(width: number): void {
+    const nextWidth = Math.round(clampPopupWidth(width));
+    if (nextWidth !== popupWidth) updateMiscSetting('dictionaryPopupWidth', nextWidth);
+  }
+
+  function setPopupHeight(height: number): void {
+    persistPopupHeight(height);
+  }
+
+  function setPopupWidth(width: number): void {
+    persistPopupWidth(width);
+  }
+
+  function resizeFromClientY(clientY: number): void {
+    const nextHeight = heightFromClientY(clientY);
+    if (nextHeight === null) return;
+    livePopupHeight = nextHeight;
+  }
+
+  function resizeFromClientX(clientX: number): void {
+    const nextWidth = widthFromClientX(clientX);
+    if (nextWidth === null) return;
+    livePopupWidth = nextWidth;
+  }
+
+  function lockResizeCursor(cursor: string): void {
+    previousBodyCursor = document.body.style.cursor;
+    previousBodyUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = cursor;
+    document.body.style.userSelect = 'none';
+  }
+
+  function unlockResizeCursor(): void {
+    document.body.style.cursor = previousBodyCursor;
+    document.body.style.userSelect = previousBodyUserSelect;
+  }
+
+  function startHeightResize(event: PointerEvent): void {
+    if (resizePointerId !== null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    activeResize = 'height';
+    resizePointerId = event.pointerId;
+    livePopupHeight = popupHeight;
+    lockResizeCursor('ns-resize');
+    heightResizeHandleEl?.setPointerCapture(event.pointerId);
+    resizeFromClientY(event.clientY);
+  }
+
+  function startWidthResize(event: PointerEvent): void {
+    if (resizePointerId !== null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    activeResize = 'width';
+    resizePointerId = event.pointerId;
+    livePopupWidth = popupWidth;
+    lockResizeCursor('ew-resize');
+    widthResizeHandleEl?.setPointerCapture(event.pointerId);
+    resizeFromClientX(event.clientX);
+  }
+
+  function handleResizeMove(event: PointerEvent): void {
+    if (!activeResize || event.pointerId !== resizePointerId) return;
+    event.preventDefault();
+    if (activeResize === 'height') {
+      resizeFromClientY(event.clientY);
+    } else {
+      resizeFromClientX(event.clientX);
+    }
+  }
+
+  function stopResize(event?: PointerEvent): void {
+    if (!activeResize || (event && event.pointerId !== resizePointerId)) return;
+    const finalHeight = livePopupHeight;
+    const finalWidth = livePopupWidth;
+    const resizeKind = activeResize;
+    activeResize = null;
+    resizePointerId = null;
+    livePopupHeight = null;
+    livePopupWidth = null;
+    const handleEl = resizeKind === 'height' ? heightResizeHandleEl : widthResizeHandleEl;
+    if (event && handleEl?.hasPointerCapture(event.pointerId)) {
+      handleEl.releasePointerCapture(event.pointerId);
+    }
+    unlockResizeCursor();
+    if (resizeKind === 'height' && finalHeight !== null) persistPopupHeight(finalHeight);
+    if (resizeKind === 'width' && finalWidth !== null) persistPopupWidth(finalWidth);
+  }
+
+  function handleHeightResizeKeydown(event: KeyboardEvent): void {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setPopupHeight(popupHeight + KEYBOARD_RESIZE_STEP);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setPopupHeight(popupHeight - KEYBOARD_RESIZE_STEP);
+    } else if (event.key === 'PageUp') {
+      event.preventDefault();
+      setPopupHeight(popupHeight + KEYBOARD_RESIZE_STEP * 2);
+    } else if (event.key === 'PageDown') {
+      event.preventDefault();
+      setPopupHeight(popupHeight - KEYBOARD_RESIZE_STEP * 2);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setPopupHeight(MIN_POPUP_HEIGHT);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setPopupHeight(MAX_POPUP_HEIGHT);
+    }
+  }
+
+  function handleWidthResizeKeydown(event: KeyboardEvent): void {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setPopupWidth(popupWidth + KEYBOARD_WIDTH_RESIZE_STEP);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setPopupWidth(popupWidth - KEYBOARD_WIDTH_RESIZE_STEP);
+    } else if (event.key === 'PageUp') {
+      event.preventDefault();
+      setPopupWidth(popupWidth + KEYBOARD_WIDTH_RESIZE_STEP * 2);
+    } else if (event.key === 'PageDown') {
+      event.preventDefault();
+      setPopupWidth(popupWidth - KEYBOARD_WIDTH_RESIZE_STEP * 2);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setPopupWidth(MIN_POPUP_WIDTH);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setPopupWidth(MAX_POPUP_WIDTH);
+    }
+  }
+
+  onDestroy(() => {
+    stopResize();
+  });
+
   // Escape is handled by the reader's capture-phase coordinator
   // (Reader.svelte handleEscapeCapture), which layers this popup against the
   // other reader overlays and the layout's global back-navigation.
@@ -82,81 +291,146 @@
   <div
     bind:this={popupEl}
     class="dict-popup"
-    style:height="{popupHeight}vh"
+    class:resizing={activeResize !== null}
+    style:height="{visiblePopupHeight}vh"
+    style:--dict-popup-width={`${visiblePopupWidth}px`}
     style:--dict-headword-font={headwordFont}
     style:--dict-definition-font={definitionFont}
     role="dialog"
     aria-label="Dictionary lookup"
     tabindex="-1"
   >
-    {#if canGoBack}
-      <button class="dict-back" aria-label="Back" onclick={popupGoBack}>‹ Back</button>
-    {/if}
-    {#if canMine}
-      <!-- One mine button for the whole lookup: the focus is the tapped word as
-           written in the sentence, so it doesn't depend on which entry is shown. -->
-      <button
-        class="dict-mine"
-        style:bottom="calc({popupHeight}vh - 1px)"
-        onclick={() => {
-          startMining();
-          closePopup();
-        }}
-      >
-        Create flashcard
-      </button>
-    {/if}
+    <div
+      bind:this={heightResizeHandleEl}
+      class="dict-resize-handle dict-height-resize-handle"
+      role="slider"
+      tabindex="0"
+      aria-label="Resize dictionary popup height"
+      aria-orientation="vertical"
+      aria-valuemin={MIN_POPUP_HEIGHT}
+      aria-valuemax={MAX_POPUP_HEIGHT}
+      aria-valuenow={visiblePopupHeight}
+      aria-valuetext={`${visiblePopupHeight.toFixed(1)}% of screen`}
+      onpointerdown={startHeightResize}
+      onpointermove={handleResizeMove}
+      onpointerup={stopResize}
+      onpointercancel={stopResize}
+      onlostpointercapture={() => stopResize()}
+      onkeydown={handleHeightResizeKeydown}
+    ></div>
 
-    {#each popup.results as result}
-      <!-- Search-only forms (JMdict sK/sk) are lookup aliases only; they stay in
-           the term's keys index but are never displayed. -->
-      {@const writings = result.writings.filter((w) => !w.hidden)}
-      {@const readings = result.readings.filter((r) => !r.hidden)}
-      <!-- A word marked 'uk' (usually written in kana) has a kana form that is a
-           real spelling, not just a reading gloss — render it at the kanji size.
-           Without 'uk', the kana only supplies the reading and stays small. -->
-      {@const usuallyKana = writings.length > 0 && result.senses.some((s) => s.misc.includes('uk'))}
-      <div class="dict-entry">
-        <div class="dict-headword">
-          {#if writings.length > 0}
-            <span class="dict-kanji"
-              >{#each writings as w, i}{#if i > 0}<span class="dict-sep">、</span>{/if}<span
-                  class="dict-writing"
-                  class:obscure={w.obscure}
-                  >{w.text}{#if w.priority}<Star />{/if}</span
+    <div
+      bind:this={widthResizeHandleEl}
+      class="dict-resize-handle dict-width-resize-handle"
+      role="slider"
+      tabindex="0"
+      aria-label="Resize dictionary popup width"
+      aria-orientation="horizontal"
+      aria-valuemin={MIN_POPUP_WIDTH}
+      aria-valuemax={maxPopupWidth()}
+      aria-valuenow={visiblePopupWidth}
+      aria-valuetext={`${Math.round(visiblePopupWidth)} pixels wide`}
+      onpointerdown={startWidthResize}
+      onpointermove={handleResizeMove}
+      onpointerup={stopResize}
+      onpointercancel={stopResize}
+      onlostpointercapture={() => stopResize()}
+      onkeydown={handleWidthResizeKeydown}
+    ></div>
+
+    <div class="dict-popup-content">
+      {#if canGoBack}
+        <button class="dict-back" aria-label="Back" onclick={popupGoBack}>‹ Back</button>
+      {/if}
+      {#each popup.results as result}
+        <!-- Search-only forms (JMdict sK/sk) are lookup aliases only; they stay in
+             the term's keys index but are never displayed. -->
+        {@const writings = result.writings.filter((w) => !w.hidden)}
+        {@const readings = result.readings.filter((r) => !r.hidden)}
+        <!-- A word marked 'uk' (usually written in kana) has a kana form that is a
+             real spelling, not just a reading gloss — render it at the kanji size.
+             Without 'uk', the kana only supplies the reading and stays small. -->
+        {@const usuallyKana =
+          writings.length > 0 && result.senses.some((s) => s.misc.includes('uk'))}
+        <div class="dict-entry">
+          <div class="dict-headword">
+            {#if writings.length > 0}
+              <span class="dict-kanji"
+                >{#each writings as w, i}<span class="dict-headword-item"
+                    >{#if i > 0}<span class="dict-sep">、</span>{/if}<span
+                      class="dict-writing"
+                      class:obscure={w.obscure}
+                      >{w.text}{#if w.priority}<Star />{/if}</span
+                    ></span
+                  >{/each}</span
+              >
+            {/if}
+
+            <span
+              class="dict-reading"
+              class:kana-headword={writings.length === 0}
+              class:usually-kana={usuallyKana}
+              >{#each readings as r, i}{@const pitch =
+                  pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
+                  class="dict-headword-item"
+                  >{#if i > 0}<span class="dict-sep">、</span>{/if}<span
+                    class="dict-reading-item"
+                    class:obscure={r.obscure}
+                    >{#if pitch}<PitchAccent
+                        reading={r.text}
+                        position={pitch.positions[0]}
+                        mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
+                      />{:else}{r.text}{/if}{#if r.priority}<Star />{/if}</span
+                  ></span
                 >{/each}</span
             >
-          {/if}
 
-          <span
-            class="dict-reading"
-            class:kana-headword={writings.length === 0}
-            class:usually-kana={usuallyKana}
-            >{#each readings as r, i}{#if i > 0}<span class="dict-sep">、</span>{/if}{@const pitch =
-                pitchMode !== 'none' ? pitchFor(result, r.text) : undefined}<span
-                class="dict-reading-item"
-                class:obscure={r.obscure}
-                >{#if pitch}<PitchAccent
-                    reading={r.text}
-                    position={pitch.positions[0]}
-                    mode={pitchMode === 'binary' ? 'binary' : 'downstep'}
-                  />{:else}{r.text}{/if}{#if r.priority}<Star />{/if}</span
-              >{/each}</span
-          >
+            {#if result.inflectionPath.length > 0}
+              <span class="dict-inflection">({result.inflectionPath.join(' › ')})</span>
+            {/if}
+          </div>
 
-          {#if result.inflectionPath.length > 0}
-            <span class="dict-inflection">({result.inflectionPath.join(' › ')})</span>
-          {/if}
+          <div class="dict-senses">
+            <Definitions senses={result.senses} />
+          </div>
         </div>
+      {/each}
 
-        <div class="dict-senses">
-          <Definitions senses={result.senses} />
-        </div>
+      {#if popup.results.length === 0}
+        <p class="dict-no-results">No results</p>
+      {/if}
+    </div>
+
+    {#if lookupContext}
+      <div class="dict-actions" style:bottom="calc({visiblePopupHeight}vh + 8px)">
+        <button
+          class="dict-action"
+          onclick={copyLookupFocus}
+          disabled={!lookupContext.focus}
+          aria-label="Copy selection"
+          title="Copy"
+        >
+          <Copy class="h-5 w-5" />
+        </button>
+        <button
+          class="dict-action"
+          onclick={explainLookupFocus}
+          disabled={!lookupContext.sentence || !lookupContext.focus}
+          aria-label="Explain selection"
+          title="Explain"
+        >
+          <MessageSquareShare class="h-5 w-5" />
+        </button>
+        <button
+          class="dict-action"
+          onclick={createFlashcard}
+          disabled={!canMine}
+          aria-label="Create flashcard"
+          title="Create flashcard"
+        >
+          <StickyNotePlus class="h-5 w-5" />
+        </button>
       </div>
-    {/each}
-
-    {#if popup.results.length === 0}
-      <p class="dict-no-results">No results</p>
     {/if}
   </div>
 {/if}
@@ -164,20 +438,93 @@
 <style>
   .dict-popup {
     position: fixed;
-    left: 0;
-    right: 0;
+    --dict-popup-visible-width: min(var(--dict-popup-width, 720px), calc(100vw - 32px));
+
+    left: max(16px, calc(50vw - var(--dict-popup-visible-width) / 2));
+    right: auto;
     bottom: 0;
+    width: var(--dict-popup-visible-width);
     height: 30vh;
     z-index: 1000;
     background: var(--color-gray-800);
     color: var(--color-gray-50);
-    border-top: 1px solid var(--color-gray-700);
+    border: 1px solid var(--color-gray-700);
+    border-bottom: none;
     border-radius: 1rem 1rem 0 0;
     box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     font-size: 14px;
     line-height: 1.5;
+  }
+
+  .dict-popup.resizing {
+    user-select: none;
+  }
+
+  .dict-popup-content {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dict-resize-handle {
+    position: absolute;
+    z-index: 2;
+    touch-action: none;
+  }
+
+  .dict-height-resize-handle {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 14px;
+    cursor: ns-resize;
+  }
+
+  .dict-width-resize-handle {
+    top: 14px;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    cursor: ew-resize;
+  }
+
+  .dict-height-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 44px;
+    height: 4px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: var(--color-gray-500);
+    opacity: 0.85;
+  }
+
+  .dict-width-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    width: 4px;
+    height: 44px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: var(--color-gray-500);
+    opacity: 0.85;
+  }
+
+  .dict-resize-handle:hover::before,
+  .dict-resize-handle:focus-visible::before,
+  .dict-popup.resizing .dict-resize-handle::before {
+    background: var(--color-gray-300);
+    opacity: 1;
+  }
+
+  .dict-resize-handle:focus-visible {
+    outline: 2px solid var(--color-gray-300);
+    outline-offset: -2px;
   }
 
   .dict-back {
@@ -201,28 +548,39 @@
     background: var(--color-gray-600);
   }
 
-  /* One mine button per lookup, floating over the popup edge. */
-  .dict-mine {
+  .dict-actions {
     position: fixed;
-    left: 50%;
-    transform: translate(-50%, -35%);
-    display: inline-flex;
+    left: max(12px, calc(50vw - var(--dict-popup-visible-width) / 2 + 12px));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1001;
+  }
+
+  .dict-action {
+    display: flex;
+    width: 40px;
+    height: 40px;
     align-items: center;
     justify-content: center;
-    min-height: 32px;
-    padding: 0 14px;
     border: none;
-    border-radius: 8px;
-    background: var(--color-gray-700);
+    border-radius: 999px;
+    background: var(--color-gray-600);
     color: var(--color-gray-50);
-    font-size: 13px;
-    font-weight: 500;
     cursor: pointer;
-    z-index: 1001;
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
   }
 
-  .dict-mine:hover {
+  .dict-action:hover {
+    background: var(--color-gray-500);
+  }
+
+  .dict-action:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .dict-action:disabled:hover {
     background: var(--color-gray-600);
   }
 
@@ -235,31 +593,49 @@
     border-bottom: none;
   }
 
-  /* Inline flow (not flexbox) so wrapped lines share one uniform row height.
-     A wrapping flex row's height tracks its contents, so a line carrying a
-     pitch-accent graph/overline grew taller than a plain line — the uneven
-     spacing. A fixed line-height makes every wrapped row identical and leaves
-     headroom above the kana for the pitch marks. */
+  /* Flex gaps only render between items that share a row, so the reading keeps
+     its kanji gap on the first line without being indented after a wrap. */
   .dict-headword {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 16px;
+    row-gap: 0;
     margin-bottom: 4px;
-    line-height: 30px;
     font-family: var(--dict-headword-font, 'UD Digi Kyokasho', 'Noto Sans JP', sans-serif);
+    overflow-wrap: normal;
+    word-break: keep-all;
+  }
+
+  .dict-headword-item,
+  .dict-inflection {
+    display: inline-block;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+  }
+
+  .dict-kanji,
+  .dict-reading,
+  .dict-inflection {
+    min-width: 0;
+    max-width: 100%;
   }
 
   /* Kanji headwords: the primary word, in the popup's default (near-white) text
      colour so the first line stays uncluttered. */
   .dict-kanji {
     font-size: 20px;
+    line-height: 30px;
     color: var(--color-gray-50);
   }
 
   /* Readings sit quietly in grey beside the word — this is the "reading only"
-     case, where the kana just tells you how to pronounce the kanji. The left
-     margin separates the kana group from the word group (matches 10ten). */
+     case, where the kana just tells you how to pronounce the kanji. */
   .dict-reading {
     font-size: 18px;
+    line-height: 30px;
     color: var(--color-gray-400);
-    margin-left: 16px;
   }
 
   /* A kana-only headword is the primary word; a 'uk' (usually-kana) word has a
@@ -269,11 +645,6 @@
   .dict-reading.usually-kana {
     font-size: 20px;
     color: var(--color-gray-50);
-  }
-
-  /* A kana-only headword leads the line, so it takes no separating indent. */
-  .dict-reading.kana-headword {
-    margin-left: 0;
   }
 
   /* Rare/old/irregular forms are de-emphasized so the standard form reads first. */
@@ -289,8 +660,9 @@
   /* Deinflection trace — quiet grey, no italics. */
   .dict-inflection {
     font-size: 12px;
+    line-height: 16px;
+    padding-bottom: 4px;
     color: var(--color-gray-400);
-    margin-left: 16px;
   }
 
   .dict-senses {
@@ -306,5 +678,24 @@
     color: var(--color-gray-400);
     font-style: italic;
     margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    .dict-popup {
+      left: 0;
+      right: 0;
+      width: 100vw;
+      max-width: none;
+      border-right: none;
+      border-left: none;
+    }
+
+    .dict-width-resize-handle {
+      display: none;
+    }
+
+    .dict-actions {
+      left: 12px;
+    }
   }
 </style>

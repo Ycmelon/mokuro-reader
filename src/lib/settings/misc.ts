@@ -50,6 +50,8 @@ export type MiscSettings = {
   gdriveAutoReAuth: boolean;
   /** Height of the dictionary definition popup, in vh. */
   dictionaryPopupHeight: number;
+  /** Width of the dictionary definition popup on tablet/desktop, in px. */
+  dictionaryPopupWidth: number;
   /** How pitch-accent info is drawn on dictionary readings. */
   pitchAccentDisplay: 'none' | 'downstep' | 'binary';
   aiChatSettings: AiChatSettings;
@@ -79,6 +81,7 @@ const defaultSettings: MiscSettings = {
   turboMode: false, // Default to single-operation mode (patient users)
   gdriveAutoReAuth: true, // Keep users synced during long reading sessions
   dictionaryPopupHeight: 30,
+  dictionaryPopupWidth: 720,
   pitchAccentDisplay: 'downstep',
   aiChatSettings: {
     openrouterApiKey: '',

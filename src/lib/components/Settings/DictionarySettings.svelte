@@ -18,6 +18,7 @@
 
   let statuses = $derived($bundledDictStatuses);
   let popupHeight = $derived($miscSettings.dictionaryPopupHeight ?? 30);
+  let popupWidth = $derived($miscSettings.dictionaryPopupWidth ?? 720);
   let pitchDisplay = $derived($miscSettings.pitchAccentDisplay ?? 'downstep');
 
   const pitchOptions = [
@@ -95,6 +96,21 @@
       <Helper class="text-xs"
         >Portion of the screen the definition popup covers (default 30%).</Helper
       >
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">
+        Definition popup width: {popupWidth}px
+      </Label>
+      <Range
+        min={360}
+        max={960}
+        step={40}
+        value={popupWidth}
+        oninput={(e) =>
+          updateMiscSetting('dictionaryPopupWidth', Number((e.target as HTMLInputElement).value))}
+      />
+      <Helper class="text-xs">Desktop and tablet width; phones stay full-width.</Helper>
     </div>
 
     <div class="flex flex-col gap-1.5">
