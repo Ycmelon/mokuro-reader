@@ -151,11 +151,14 @@
       // Also handle dialogs in top layer for Firefox
       setupDialogObserver(active);
     } else {
-      // Non-Firefox approach: Use CSS variables with SVG filter
+      // Non-Firefox approach: Use CSS variables with a CSS-only red monochrome filter
       const rootElement = document.documentElement;
 
       if (active) {
-        rootElement.style.setProperty('--night-mode-filter', 'url(#night-mode-filter)');
+        rootElement.style.setProperty(
+          '--night-mode-filter',
+          'grayscale(1) sepia(1) saturate(10000%) hue-rotate(-55deg) brightness(0.85)'
+        );
       } else {
         rootElement.style.setProperty('--night-mode-filter', 'none');
       }

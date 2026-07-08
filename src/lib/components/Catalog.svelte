@@ -272,7 +272,7 @@
 </script>
 
 {#if $catalog === null}
-  <Loader>Loading catalog...</Loader>
+  <Loader />
 {:else if $catalog.length > 0}
   <div class="flex flex-col gap-5">
     <div class="flex w-full gap-1 py-2">

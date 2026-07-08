@@ -9,6 +9,6 @@
 </script>
 
 <div class="flex h-full flex-col items-center justify-center gap-5 p-10">
-  <Spinner size={'8'} />
-  {#if children}{@render children()}{:else}Loading...{/if}
+  <Spinner size="12" />
+  {#if children}{@render children()}{/if}
 </div>

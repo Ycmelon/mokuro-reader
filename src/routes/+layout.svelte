@@ -28,6 +28,7 @@
   import { checkMigrationNeeded } from '$lib/catalog/migration';
   import { startThumbnailProcessing } from '$lib/catalog/db';
   import { get } from 'svelte/store';
+  import { Spinner } from 'flowbite-svelte';
 
   // Migration state
   let migrationNeeded: 1 | 2 | null = $state(null);
@@ -112,7 +113,7 @@
 {:else if !migrationChecked}
   <!-- Show loading while checking for migration -->
   <div class="flex h-full min-h-[100svh] items-center justify-center bg-gray-900 text-white">
-    <p>Loading...</p>
+    <Spinner size="12" />
   </div>
 {:else}
   <div class="h-full min-h-[100svh] text-gray-900 dark:text-white">

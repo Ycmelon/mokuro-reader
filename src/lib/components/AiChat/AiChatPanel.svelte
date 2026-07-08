@@ -15,6 +15,7 @@
   } from '$lib/ai-chat/store';
   import { miscSettings } from '$lib/settings/misc';
   import { renderMarkdown } from '$lib/ai-chat/markdown';
+  import { isMobilePlatform } from '$lib/util/platform';
 
   let textarea: HTMLTextAreaElement | undefined = $state();
   let messagesEl: HTMLDivElement | undefined = $state();
@@ -85,7 +86,10 @@
   // where the list was scrolled when it was last closed.
   $effect(() => {
     if ($chatOpen) {
-      tick().then(() => scrollToBottom());
+      tick().then(() => {
+        autoResize();
+        scrollToBottom();
+      });
     }
   });
 
@@ -118,7 +122,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMobilePlatform()) {
       e.preventDefault();
       handleSend();
     }
