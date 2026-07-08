@@ -88,8 +88,8 @@
 
     <!-- 2. If paged: Page view mode dropdown -->
     {#if isPaged}
-      <div>
-        <Label for="page-view-mode" class="mb-2 text-gray-900 dark:text-white">
+      <div class="flex flex-col gap-1.5">
+        <Label for="page-view-mode" class="text-gray-900 dark:text-white">
           Page view mode
           <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(P)</span>
         </Label>
@@ -105,8 +105,8 @@
 
     <!-- 3. If continuous: Scroll mode dropdown + gap slider -->
     {#if isContinuous}
-      <div>
-        <Label class="text-gray-900 dark:text-white">Scroll mode:</Label>
+      <div class="flex flex-col gap-1.5">
+        <Label class="text-gray-900 dark:text-white">Scroll mode</Label>
         <Select
           size="sm"
           items={scrollModes}
@@ -123,7 +123,7 @@
         <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(M)</span>
       </Toggle>
       {#if $settings.pageDividers}
-        <div>
+        <div class="flex flex-col gap-1.5">
           <Label class="text-gray-900 dark:text-white">
             Divider size: {$settings.scrollGap}px
           </Label>
@@ -191,7 +191,7 @@
 
     <!-- 13. If paged: Swipe threshold, Edge button width -->
     {#if showPagedOnly}
-      <div>
+      <div class="flex flex-col gap-1.5">
         <Label>
           Swipe threshold
           <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(Mobile only)</span>
@@ -204,7 +204,7 @@
           bind:value={swipeThresholdValue}
         />
       </div>
-      <div>
+      <div class="flex flex-col gap-1.5">
         <Label>Edge button width</Label>
         <Range onchange={onWidthChange} min={1} max={100} bind:value={edgeButtonWidthValue} />
       </div>

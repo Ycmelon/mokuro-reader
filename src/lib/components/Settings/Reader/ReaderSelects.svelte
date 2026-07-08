@@ -27,13 +27,13 @@
   let pageTransitions = [
     { value: 'none', name: 'None' },
     { value: 'crossfade', name: 'Crossfade' },
-    { value: 'pageTurn', name: 'Page Turn' },
+    { value: 'pageTurn', name: 'Page turn' },
     { value: 'swipe', name: 'Swipe' }
   ];
 
   let fontSizes = [
-    { value: 'auto', name: 'auto' },
-    { value: 'original', name: 'original' },
+    { value: 'auto', name: 'Auto' },
+    { value: 'original', name: 'Original' },
     { value: '9', name: '9' },
     { value: '10', name: '10' },
     { value: '11', name: '11' },
@@ -54,9 +54,9 @@
   }
 </script>
 
-<div>
+<div class="flex flex-col gap-1.5">
   <Label class="text-gray-900 dark:text-white">
-    On page zoom:
+    On page zoom
     <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(Z)</span>
   </Label>
   {#if isContinuous}
@@ -74,8 +74,8 @@
   {/if}
 </div>
 {#if !isContinuous}
-  <div>
-    <Label class="text-gray-900 dark:text-white">Page transition:</Label>
+  <div class="flex flex-col gap-1.5">
+    <Label class="text-gray-900 dark:text-white">Page transition</Label>
     <Select
       items={pageTransitions}
       value={pageTransitionValue}
@@ -83,7 +83,7 @@
     />
   </div>
 {/if}
-<div>
-  <Label class="text-gray-900 dark:text-white">Fontsize:</Label>
+<div class="flex flex-col gap-1.5">
+  <Label class="text-gray-900 dark:text-white">Font size</Label>
   <Select items={fontSizes} value={fontSizeValue} onchange={(e) => onSelectChange(e, 'fontSize')} />
 </div>

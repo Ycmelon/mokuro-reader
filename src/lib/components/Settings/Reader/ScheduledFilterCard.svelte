@@ -85,14 +85,14 @@
   {:else}
     <div class="space-y-2">
       <div class="flex items-center gap-2">
-        <Label class="w-12 text-xs text-gray-700 dark:text-gray-300">Start:</Label>
+        <Label class="w-12 text-xs text-gray-700 dark:text-gray-300">Start</Label>
         <TimePicker
           value={$settings[scheduleKey].startTime}
           onchange={(val) => updateScheduleSetting(scheduleKey, 'startTime', val)}
         />
       </div>
       <div class="flex items-center gap-2">
-        <Label class="w-12 text-xs text-gray-700 dark:text-gray-300">End:</Label>
+        <Label class="w-12 text-xs text-gray-700 dark:text-gray-300">End</Label>
         <TimePicker
           value={$settings[scheduleKey].endTime}
           onchange={(val) => updateScheduleSetting(scheduleKey, 'endTime', val)}

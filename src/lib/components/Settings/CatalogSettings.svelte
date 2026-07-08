@@ -14,7 +14,7 @@
   const presetOptions = [
     { value: 'compact', name: 'Compact' },
     { value: 'default', name: 'Default' },
-    { value: 'spine', name: 'Spine Showcase' },
+    { value: 'spine', name: 'Spine showcase' },
     { value: 'custom', name: 'Custom' }
   ];
 
@@ -107,24 +107,25 @@
   <div class="flex flex-col gap-4">
     {#if isCatalog()}
       <!-- Thumbnail Stacking Section -->
-      <div class="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <Label class="mb-3 text-sm font-medium">Thumbnail stacking</Label>
+      <div class="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
+        <div class="flex flex-col gap-1.5">
+          <Label class="text-sm font-medium">Thumbnail stacking</Label>
 
-        <Select
-          class="mb-4"
-          items={presetOptions}
-          value={$catalogSettings?.stackingPreset}
-          onchange={(e) => applyPreset(e.currentTarget.value as CatalogStackingPreset)}
-        />
+          <Select
+            items={presetOptions}
+            value={$catalogSettings?.stackingPreset}
+            onchange={(e) => applyPreset(e.currentTarget.value as CatalogStackingPreset)}
+          />
+        </div>
 
         {#if isCustom}
           <!-- Stack count -->
-          <div class="mb-4">
-            <Label class="mb-2"
-              >Stack count: {$catalogSettings?.stackCount === 0
+          <div class="flex flex-col gap-1.5">
+            <Label>
+              Stack count: {$catalogSettings?.stackCount === 0
                 ? 'All'
-                : $catalogSettings?.stackCount}</Label
-            >
+                : $catalogSettings?.stackCount}
+            </Label>
             <Range
               min={0}
               max={10}
@@ -135,12 +136,12 @@
               }}
             />
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              0 = show all volumes in series. Cloud series are capped at 25 thumbnails.
+              0 shows all volumes in a series. Cloud series are capped at 25 thumbnails.
             </p>
           </div>
 
           <!-- Hide completed -->
-          <div class="mb-4">
+          <div>
             <Toggle
               checked={$catalogSettings?.hideReadVolumes ?? true}
               onchange={(e) => {
@@ -153,10 +154,10 @@
           </div>
 
           <!-- Horizontal axis group -->
-          <div class="mb-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-            <Label class="mb-2 text-xs text-gray-500 uppercase">Horizontal</Label>
-            <div class="mb-2">
-              <Label class="mb-1">Offset: {$catalogSettings?.horizontalStep ?? 11}%</Label>
+          <div class="flex flex-col gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+            <Label class="text-xs text-gray-500 uppercase">Horizontal</Label>
+            <div class="flex flex-col gap-1.5">
+              <Label>Offset: {$catalogSettings?.horizontalStep ?? 11}%</Label>
               <Range
                 min={0}
                 max={30}
@@ -182,12 +183,13 @@
           </div>
 
           <!-- Vertical axis group -->
-          <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800" class:opacity-50={isAllVolumes}>
-            <Label class="mb-2 text-xs text-gray-500 uppercase">Vertical</Label>
-            <div class="mb-2">
-              <Label class="mb-1"
-                >Offset: {isAllVolumes ? 0 : ($catalogSettings?.verticalStep ?? 5)}%</Label
-              >
+          <div
+            class="flex flex-col gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800"
+            class:opacity-50={isAllVolumes}
+          >
+            <Label class="text-xs text-gray-500 uppercase">Vertical</Label>
+            <div class="flex flex-col gap-1.5">
+              <Label>Offset: {isAllVolumes ? 0 : ($catalogSettings?.verticalStep ?? 5)}%</Label>
               <Range
                 min={0}
                 max={30}
@@ -212,7 +214,7 @@
           </div>
 
           <!-- Cloud series display -->
-          <div class="mt-4">
+          <div>
             <Toggle
               checked={$catalogSettings?.compactCloudSeries ?? false}
               onchange={(e) => {
@@ -223,12 +225,12 @@
               Compact cloud-only series
             </Toggle>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Show cloud-only series as single thumbnails
+              Show cloud-only series as single thumbnails.
             </p>
           </div>
 
           <!-- Drop shadow -->
-          <div class="mt-4">
+          <div>
             <Toggle
               checked={$catalogSettings?.dropShadow ?? true}
               onchange={(e) => {

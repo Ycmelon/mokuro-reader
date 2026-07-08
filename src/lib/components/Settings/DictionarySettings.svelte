@@ -43,7 +43,7 @@
 <AccordionItem>
   {#snippet header()}Dictionaries{/snippet}
 
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-4">
     {#each statuses as status (status.label)}
       <div class="rounded border border-gray-200 px-3 py-2 dark:border-gray-600">
         <div class="flex items-center justify-between gap-2">
@@ -80,8 +80,8 @@
       </div>
     {/each}
 
-    <div class="mt-1">
-      <Label class="mb-1 text-gray-900 dark:text-white">
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">
         Definition popup height: {popupHeight}%
       </Label>
       <Range
@@ -97,8 +97,8 @@
       >
     </div>
 
-    <div class="mt-1">
-      <Label class="mb-1 text-gray-900 dark:text-white">Pitch accent display</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Pitch accent display</Label>
       <Select
         items={pitchOptions}
         value={pitchDisplay}
@@ -108,9 +108,9 @@
             (e.target as HTMLSelectElement).value as 'none' | 'downstep' | 'binary'
           )}
       />
-      <Helper class="text-xs"
-        >How pitch accent is drawn on readings (from the Pitch Accents dictionary).</Helper
-      >
+      <Helper class="text-xs">
+        How pitch accent is drawn on readings (from the Pitch Accents dictionary).
+      </Helper>
     </div>
   </div>
 </AccordionItem>

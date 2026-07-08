@@ -8,7 +8,7 @@
   ] as { key: VolumeDefaultsKey; text: string; value: any }[]);
 </script>
 
-<AccordionItem open>
+<AccordionItem>
   {#snippet header()}Volume defaults{/snippet}
   <div class="flex flex-col gap-5">
     <Helper>The default settings that are applied when you start a new volume</Helper>

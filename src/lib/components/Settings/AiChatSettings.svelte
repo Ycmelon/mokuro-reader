@@ -29,9 +29,9 @@
   {#snippet header()}Chat{/snippet}
 
   <div class="flex flex-col gap-4">
-    <!-- API Key -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">OpenRouter API Key</Label>
+    <!-- API key -->
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">OpenRouter API key</Label>
       <div class="flex gap-2">
         <Input
           type={showKey ? 'text' : 'password'}
@@ -49,12 +49,12 @@
           {showKey ? 'Hide' : 'Show'}
         </button>
       </div>
-      <Helper class="mt-1 text-xs">Get a key at openrouter.ai</Helper>
+      <Helper class="text-xs">Get a key at openrouter.ai.</Helper>
     </div>
 
     <!-- Chat font size -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">Font size</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Font size</Label>
       <Select
         items={chatFontSizes}
         value={String(settings.chatFontSize)}
@@ -64,8 +64,8 @@
     </div>
 
     <!-- Model -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">Model</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Model</Label>
       <Input
         type="text"
         value={settings.model}
@@ -73,12 +73,12 @@
         oninput={(e) => updateAiChatSetting('model', (e.target as HTMLInputElement).value)}
         class="font-mono text-sm"
       />
-      <Helper class="mt-1 text-xs">Any model ID from openrouter.ai/models</Helper>
+      <Helper class="text-xs">Any model ID from openrouter.ai/models.</Helper>
     </div>
 
     <!-- Max history messages -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">
         Max history messages: {settings.maxHistoryMessages}
       </Label>
       <Range
@@ -89,9 +89,9 @@
         oninput={(e) =>
           updateAiChatSetting('maxHistoryMessages', Number((e.target as HTMLInputElement).value))}
       />
-      <Helper class="mt-1 text-xs">
-        How many past messages to include with each request (default 20).
-      </Helper>
+      <Helper class="text-xs"
+        >How many past messages to include with each request (default 20).</Helper
+      >
     </div>
   </div>
 </AccordionItem>

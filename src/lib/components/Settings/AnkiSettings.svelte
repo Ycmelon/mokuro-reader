@@ -216,8 +216,8 @@
   {#snippet header()}Anki{/snippet}
   <div class="flex flex-col gap-5">
     <!-- Protocol selector -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">Connect via:</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Connect via</Label>
       <Select
         placeholder=""
         value={protocol}
@@ -237,8 +237,8 @@
         includes this reader (<code class="text-primary-500">{$page.url.origin}</code>).
       </Helper>
 
-      <div>
-        <Label class="mb-1 text-gray-900 dark:text-white">Server URL:</Label>
+      <div class="flex flex-col gap-1.5">
+        <Label class="text-gray-900 dark:text-white">Server URL</Label>
         <Input
           type="url"
           placeholder="https://anki.example.com"
@@ -284,12 +284,12 @@
             onclick={handleServerLogout}
             disabled={busy || syncing}
           >
-            {busy ? 'Logging out…' : 'Logout'}
+            {busy ? 'Logging out…' : 'Log out'}
           </Button>
         </div>
       {:else}
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">AnkiWeb email:</Label>
+        <div class="flex flex-col gap-1.5">
+          <Label class="text-gray-900 dark:text-white">AnkiWeb email</Label>
           <Input
             type="email"
             placeholder="you@example.com"
@@ -298,8 +298,8 @@
             autocomplete="username"
           />
         </div>
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">AnkiWeb password:</Label>
+        <div class="flex flex-col gap-1.5">
+          <Label class="text-gray-900 dark:text-white">AnkiWeb password</Label>
           <div class="flex gap-2">
             <Input
               type={showPassword ? 'text' : 'password'}
@@ -319,9 +319,7 @@
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
-          <Helper class="mt-1">
-            Your password is sent to your server only and is never stored.
-          </Helper>
+          <Helper>Your password is sent to your server only and is never stored.</Helper>
         </div>
 
         <Button
@@ -340,8 +338,8 @@
         AnkiConnect <b class="text-primary-500">webCorsOriginList</b> setting, then connect.
       </Helper>
 
-      <div>
-        <Label class="mb-1 text-gray-900 dark:text-white">AnkiConnect URL:</Label>
+      <div class="flex flex-col gap-1.5">
+        <Label class="text-gray-900 dark:text-white">AnkiConnect URL</Label>
         <div class="flex gap-2">
           <Input
             type="text"
@@ -384,7 +382,7 @@
             ({models.length} note types)
           </div>
         {:else if !isConnecting}
-          <Helper class="mt-1">Connect to AnkiConnect to choose a card destination.</Helper>
+          <Helper>Connect to AnkiConnect to choose a card destination.</Helper>
         {/if}
       </div>
     {/if}
@@ -396,8 +394,8 @@
         <Label class="text-base font-semibold text-gray-900 dark:text-white">Card destination</Label
         >
 
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Deck:</Label>
+        <div class="flex flex-col gap-1.5">
+          <Label class="text-gray-900 dark:text-white">Deck</Label>
           <Select
             placeholder="Choose a deck…"
             value={cfg.deck}
@@ -409,8 +407,8 @@
           </Select>
         </div>
 
-        <div>
-          <Label class="mb-1 text-gray-900 dark:text-white">Note type:</Label>
+        <div class="flex flex-col gap-1.5">
+          <Label class="text-gray-900 dark:text-white">Note type</Label>
           <div class="flex gap-2">
             <Select
               placeholder="Choose a note type…"
@@ -438,8 +436,8 @@
     {/if}
 
     <!-- ── Mining preferences (shared) ── -->
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">Crop tool:</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Crop tool</Label>
       <Select
         placeholder=""
         value={cfg.cropMode}
@@ -451,8 +449,8 @@
       </Select>
     </div>
 
-    <div>
-      <Label class="mb-1 text-gray-900 dark:text-white">Card language:</Label>
+    <div class="flex flex-col gap-1.5">
+      <Label class="text-gray-900 dark:text-white">Card language</Label>
       <Select
         placeholder=""
         value={cfg.cardLanguage}
