@@ -13,7 +13,7 @@
   let isContinuous = $derived($settings.continuousScroll);
 
   // Keys hidden in continuous scroll mode (not applicable)
-  const continuousHidden = new Set<SettingsKey>(['bounds', 'mobile']);
+  const continuousHidden = new Set<SettingsKey>(['bounds', 'mobile', 'reachableOverpan']);
 
   let toggles = $derived(
     (
@@ -49,6 +49,12 @@
         { key: 'pageNum', text: 'Show page number', value: $settings.pageNum },
         { key: 'charCount', text: 'Show character count', value: $settings.charCount },
         { key: 'bounds', text: 'Bounds', value: $settings.bounds },
+        {
+          key: 'reachableOverpan',
+          text: 'Reachable zoom panning',
+          value: $settings.reachableOverpan,
+          description: 'Allow zoomed pages to drag slightly past the screen edges'
+        },
         { key: 'mobile', text: 'Mobile', value: $settings.mobile },
         { key: 'showTimer', text: 'Show timer', value: $settings.showTimer },
         { key: 'quickActions', text: 'Show quick actions', value: $settings.quickActions },

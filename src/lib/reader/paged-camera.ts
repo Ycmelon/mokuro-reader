@@ -26,11 +26,19 @@ import {
 } from './paged-zoom-layout';
 import type { ZoomSurface } from './zoom-controller';
 
+const OVERPAN_VIEWPORT_FRACTION_X = 0.3;
+const OVERPAN_VIEWPORT_FRACTION_Y = 0.3;
+const ZOOMED_EPSILON = 0.001;
+
 export interface PagedCameraConfig {
   getWrapper(): HTMLElement | null | undefined;
   getViewport(): Size;
   /** bounds/mobile settings gate — false means free panning, no clamping. */
   isClampingEnabled(): boolean;
+  /** Enables extra bounded panning slack for zoomed pages. */
+  isOverpanEnabled?(): boolean;
+  /** Allows overpan even at whole-page fit/100% zoom, used by crop framing. */
+  isBaseOverpanEnabled?(): boolean;
   getDevicePixelRatio?(): number;
 }
 
@@ -41,6 +49,7 @@ export class PagedCamera {
   private userZoom = 1;
   private tx = 0;
   private ty = 0;
+  private reachableOverpanActive = false;
   private panX: Animator;
   private panY: Animator;
   private kinetic: KineticControls;
@@ -61,14 +70,14 @@ export class PagedCamera {
         this.ty = v;
         this.clampAndRender(false);
       },
-      { factor: 0.22, epsilon: 0.5, onSettle: () => this.settle() }
+      { factor: 0.22, epsilon: 0.5, onSettle: () => this.settle(true) }
     );
     // Inertial panning (restored from panzoom's kinetic.js). It polls the
     // live translate during a drag and, on release, glides it with momentum.
     this.kinetic = createKinetic(
       () => ({ x: this.tx, y: this.ty }),
       (x, y) => {
-        const c = this.clamped({ x, y });
+        const c = this.clamped({ x, y }, true);
         this.tx = c.x;
         this.ty = c.y;
         this.syncPan();
@@ -93,10 +102,10 @@ export class PagedCamera {
       // still armed from kineticStart(); cancel it so it doesn't reschedule
       // itself forever (this branch never reaches kinetic.stop()).
       this.kinetic.cancel();
-      this.settle();
+      this.settle(true);
       return;
     }
-    this.kinetic.stop(() => this.settle());
+    this.kinetic.stop(() => this.settle(true));
   }
 
   get translate(): Translate {
@@ -111,6 +120,33 @@ export class PagedCamera {
     const c = this.content ?? { width: 0, height: 0 };
     const s = this.effectiveScale;
     return { width: c.width * s, height: c.height * s };
+  }
+
+  private overpanForZoom(userZoom = this.userZoom): Size {
+    const content = this.content;
+    const viewport = this.config.getViewport();
+    if (!content || !(content.width > 0) || !(content.height > 0)) {
+      return { width: 0, height: 0 };
+    }
+
+    const fitScale = Math.min(viewport.width / content.width, viewport.height / content.height);
+    const effectiveScale = this.base.scale * userZoom;
+    if (this.config.isOverpanEnabled?.() === false) {
+      return { width: 0, height: 0 };
+    }
+
+    const allowBaseOverpan = this.config.isBaseOverpanEnabled?.() === true;
+    if (
+      !allowBaseOverpan &&
+      (userZoom <= 1 + ZOOMED_EPSILON || effectiveScale <= fitScale + ZOOMED_EPSILON)
+    ) {
+      return { width: 0, height: 0 };
+    }
+
+    return {
+      width: viewport.width * OVERPAN_VIEWPORT_FRACTION_X,
+      height: viewport.height * OVERPAN_VIEWPORT_FRACTION_Y
+    };
   }
 
   /**
@@ -128,6 +164,7 @@ export class PagedCamera {
   /** Re-place the view at the base placement for the current user zoom. */
   place(): void {
     this.stopPan();
+    this.reachableOverpanActive = false;
     const scaled = this.scaledSize();
     const viewport = this.config.getViewport();
     this.tx = basePosition(this.base.alignX, scaled.width, viewport.width);
@@ -140,8 +177,15 @@ export class PagedCamera {
 
   /** Set the user zoom multiplier (controller frame step). Clamps and renders. */
   setUserZoom(zoom: number): void {
+    const allowBaseOverpan = this.config.isBaseOverpanEnabled?.() === true;
+    const preserveOverpan =
+      (allowBaseOverpan || zoom > 1 + ZOOMED_EPSILON) &&
+      (this.reachableOverpanActive || this.isOutsideStrictBounds());
     this.userZoom = zoom;
-    this.clampAndRender(true);
+    this.clampAndRender(true, preserveOverpan);
+    if (!allowBaseOverpan && zoom <= 1 + ZOOMED_EPSILON) {
+      this.reachableOverpanActive = false;
+    }
   }
 
   /**
@@ -149,6 +193,15 @@ export class PagedCamera {
    * scroll write: moving content left/up by (dx, dy) decreases the translate.
    */
   adjustView(dx: number, dy: number): void {
+    this.tx -= dx;
+    this.ty -= dy;
+    this.syncPan();
+    this.clampAndRender(false);
+    this.noteZoomedUserPan();
+  }
+
+  /** Zoom anchor correction in screen space, bounded by reachable-overpan. */
+  correctZoomView(dx: number, dy: number): void {
     this.tx -= dx;
     this.ty -= dy;
     this.syncPan();
@@ -161,9 +214,10 @@ export class PagedCamera {
     // cancel the glide so the two don't fight over the translate. (The pan
     // animators are left running so successive wheel pans still chain.)
     this.kinetic.cancel();
-    const target = this.clamped({ x: this.panX.target + dx, y: this.panY.target + dy });
+    const target = this.clamped({ x: this.panX.target + dx, y: this.panY.target + dy }, true);
     this.panX.setTarget(target.x);
     this.panY.setTarget(target.y);
+    this.noteZoomedUserPan();
   }
 
   /** Stop pan animations and any inertial glide, keeping the current position. */
@@ -190,9 +244,11 @@ export class PagedCamera {
    * re-clamping after rounding would clobber the rounding for exactly the
    * image-smaller-than-viewport case #65 is about.
    */
-  settle(): void {
+  settle(allowOverpan = false): void {
     const dpr = this.config.getDevicePixelRatio?.() ?? 1;
-    const c = this.clamped({ x: this.tx, y: this.ty });
+    const preserveOverpan =
+      allowOverpan && (this.reachableOverpanActive || this.isOutsideStrictBounds());
+    const c = this.clamped({ x: this.tx, y: this.ty }, preserveOverpan);
     this.tx = Math.round(c.x * dpr) / dpr;
     this.ty = Math.round(c.y * dpr) / dpr;
     this.syncPan();
@@ -201,7 +257,9 @@ export class PagedCamera {
 
   /** Hidden-content edge state for swipe-to-flip gating (issue #186). */
   edgeState(): { canRevealLeft: boolean; canRevealRight: boolean } {
-    return panEdgeState(this.translate, this.scaledSize(), this.config.getViewport());
+    return panEdgeState(this.translate, this.scaledSize(), this.config.getViewport(), {
+      overpan: this.overpanForZoom()
+    });
   }
 
   /**
@@ -235,7 +293,7 @@ export class PagedCamera {
       syncLayout: () => {
         // Transforms don't relayout; getBoundingClientRect always sees them.
       },
-      correctView: (dx, dy) => this.adjustView(dx, dy)
+      correctView: (dx, dy) => this.correctZoomView(dx, dy)
     };
   }
 
@@ -245,15 +303,33 @@ export class PagedCamera {
     this.kinetic.cancel();
   }
 
-  private clamped(translate: Translate): Translate {
+  private clamped(translate: Translate, allowOverpan = false): Translate {
     if (!this.config.isClampingEnabled() || !this.content) return translate;
-    return clampTranslate(translate, this.scaledSize(), this.config.getViewport());
+    return clampTranslate(translate, this.scaledSize(), this.config.getViewport(), {
+      overpan: allowOverpan ? this.overpanForZoom() : undefined
+    });
   }
 
-  private clampAndRender(resyncPan: boolean): void {
-    const c = this.clamped({ x: this.tx, y: this.ty });
+  private isOutsideStrictBounds(): boolean {
+    if (!this.config.isClampingEnabled() || !this.content) return false;
+    const strict = this.clamped({ x: this.tx, y: this.ty }, false);
+    return Math.abs(strict.x - this.tx) > 0.5 || Math.abs(strict.y - this.ty) > 0.5;
+  }
+
+  private noteZoomedUserPan(): void {
+    const overpan = this.overpanForZoom();
+    if (overpan.width > 0 || overpan.height > 0) {
+      this.reachableOverpanActive = true;
+    }
+  }
+
+  private clampAndRender(resyncPan: boolean, allowOverpan = true): void {
+    const c = this.clamped({ x: this.tx, y: this.ty }, allowOverpan);
     this.tx = c.x;
     this.ty = c.y;
+    if (allowOverpan && this.isOutsideStrictBounds()) {
+      this.reachableOverpanActive = true;
+    }
     if (resyncPan) this.syncPan();
     this.render();
   }

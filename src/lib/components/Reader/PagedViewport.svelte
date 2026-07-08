@@ -71,6 +71,8 @@
     getWrapper: () => wrapperEl,
     getViewport: () => ({ width: viewportWidth, height: viewportHeight }),
     isClampingEnabled: () => $settings.bounds || $settings.mobile,
+    isOverpanEnabled: () => $settings.reachableOverpan,
+    isBaseOverpanEnabled: () => $miningStage.kind === 'crop',
     getDevicePixelRatio: () => (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
   });
 
@@ -87,7 +89,7 @@
       return liveTree ? all.filter((el) => el.closest('.col-start-1') === liveTree) : all;
     },
     getViewport: () => ({ width: viewportWidth, height: viewportHeight }),
-    onSettled: () => camera.settle()
+    onSettled: (zoom) => camera.settle(zoom > 1.001 || $miningStage.kind === 'crop')
   });
 
   function applyBase(mode: string) {
@@ -255,9 +257,9 @@
         onPageFlip?.(side);
       } else if (s.cancelled || cropping) {
         // Cancelled gesture, or panning under the crop tool: drop momentum and
-        // settle in place immediately (no fling).
+        // settle in place immediately (no fling), preserving zoomed overpan.
         camera.stopPan();
-        camera.settle();
+        camera.settle(true);
       } else {
         // Normal release: glide with inertia (or settle if too slow).
         camera.kineticStop();

@@ -28,6 +28,15 @@ export interface Translate {
   y: number;
 }
 
+export interface ClampTranslateOptions {
+  /**
+   * Extra per-axis slack beyond the strict content-edge bounds. Used for
+   * zoomed paged-reader panning so a page corner can be pulled toward the
+   * thumb without allowing the page to disappear entirely.
+   */
+  overpan?: Size;
+}
+
 export type Align = 'start' | 'center' | 'end';
 
 export interface BaseLayout extends Translate {
@@ -152,18 +161,40 @@ export function baseTransform(
 export function clampTranslate(
   translate: Translate,
   scaledContent: Size,
-  viewport: Size
+  viewport: Size,
+  options: ClampTranslateOptions = {}
 ): Translate {
-  const clampAxis = (value: number, scaled: number, view: number): number => {
-    if (scaled <= view + EDGE_EPSILON) return (view - scaled) / 2;
+  const clampAxis = (value: number, scaled: number, view: number, requestedOverpan = 0): number => {
     const v = Number.isFinite(value) ? value : 0;
-    return Math.max(view - scaled, Math.min(0, v));
+    const bounds = panBoundsForAxis(scaled, view, requestedOverpan);
+    return Math.max(bounds.min, Math.min(bounds.max, v));
   };
 
   return {
-    x: clampAxis(translate.x, scaledContent.width, viewport.width),
-    y: clampAxis(translate.y, scaledContent.height, viewport.height)
+    x: clampAxis(translate.x, scaledContent.width, viewport.width, options.overpan?.width),
+    y: clampAxis(translate.y, scaledContent.height, viewport.height, options.overpan?.height)
   };
+}
+
+function panBoundsForAxis(
+  scaled: number,
+  view: number,
+  requestedOverpan = 0
+): { min: number; max: number } {
+  const overpan = allowedOverpan(scaled, view, requestedOverpan);
+
+  if (scaled <= view + EDGE_EPSILON) {
+    const center = (view - scaled) / 2;
+    return { min: center - overpan, max: center + overpan };
+  }
+
+  return { min: view - scaled - overpan, max: overpan };
+}
+
+function allowedOverpan(scaled: number, view: number, requested: number): number {
+  if (!(requested > EDGE_EPSILON) || !(scaled > 0) || !(view > 0)) return 0;
+  const minimumVisible = Math.min(scaled, Math.max(48, Math.min(128, view * 0.25, scaled * 0.35)));
+  return Math.max(0, Math.min(requested, scaled - minimumVisible));
 }
 
 /**
@@ -175,14 +206,12 @@ export function clampTranslate(
 export function panEdgeState(
   translate: Translate,
   scaledContent: Size,
-  viewport: Size
+  viewport: Size,
+  options: ClampTranslateOptions = {}
 ): { canRevealLeft: boolean; canRevealRight: boolean } {
-  if (scaledContent.width <= viewport.width) {
-    return { canRevealLeft: false, canRevealRight: false };
-  }
-  const minX = viewport.width - scaledContent.width;
+  const bounds = panBoundsForAxis(scaledContent.width, viewport.width, options.overpan?.width);
   return {
-    canRevealLeft: translate.x < 0 - EDGE_EPSILON,
-    canRevealRight: translate.x > minX + EDGE_EPSILON
+    canRevealLeft: translate.x < bounds.max - EDGE_EPSILON,
+    canRevealRight: translate.x > bounds.min + EDGE_EPSILON
   };
 }

@@ -108,6 +108,7 @@ export type Settings = {
   pageNum: boolean;
   charCount: boolean;
   bounds: boolean;
+  reachableOverpan: boolean;
   mobile: boolean;
   backgroundColor: string;
   theme: string; // preset id ('dark' | 'eink' | 'paper' | 'sepia' | 'nord' | 'custom')
@@ -171,6 +172,7 @@ const defaultSettings: Settings = {
   charCount: false,
   mobile: false,
   bounds: true,
+  reachableOverpan: true,
   backgroundColor: '#030712',
   theme: 'dark',
   customTheme: {

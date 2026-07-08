@@ -4,17 +4,26 @@ import { baseTransform } from './paged-zoom-layout';
 import { setInstantAnimations } from './animator';
 
 const viewport = { width: 1600, height: 900 };
+const overpanX = viewport.width * 0.3;
+const overpanY = viewport.height * 0.3;
 
 function makeWrapper() {
   return { style: { transform: '', transformOrigin: '' } } as unknown as HTMLElement;
 }
 
-function makeCamera(opts?: { clamp?: boolean; dpr?: number }) {
+function makeCamera(opts?: {
+  clamp?: boolean;
+  overpan?: boolean;
+  baseOverpan?: boolean;
+  dpr?: number;
+}) {
   const wrapper = makeWrapper();
   const camera = new PagedCamera({
     getWrapper: () => wrapper,
     getViewport: () => viewport,
     isClampingEnabled: () => opts?.clamp ?? true,
+    isOverpanEnabled: () => opts?.overpan ?? true,
+    isBaseOverpanEnabled: () => opts?.baseOverpan ?? false,
     getDevicePixelRatio: () => opts?.dpr ?? 1
   });
   return { camera, wrapper };
@@ -89,13 +98,16 @@ describe('PagedCamera — clamping invariant', () => {
     const { camera } = makeCamera();
     camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
     camera.setUserZoom(3); // 1890x2700, overflows both axes
-    camera.adjustView(2000, 3000); // pan past the bottom-right corner — clamps at the edges
+    camera.adjustView(2000, 3000); // pan past the bottom-right corner — clamps with overpan
     const atEdgeY = camera.translate.y;
-    expect(atEdgeY).toBeCloseTo(900 - 2700, 1);
+    expect(atEdgeY).toBeCloseTo(900 - 2700 - overpanY, 1);
 
-    camera.setUserZoom(1.5); // shrink: old translate now far out of bounds
-    expect(camera.translate.y).toBeGreaterThanOrEqual(900 - 1000 * 0.9 * 1.5);
-    expect(camera.translate.x).toBeCloseTo((1600 - 700 * 0.9 * 1.5) / 2, 4); // fitting axis re-locks
+    camera.setUserZoom(1.5); // shrink but stay zoomed: keep reachable overpan
+    expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 1);
+
+    camera.setUserZoom(1); // fully reset to 100%: collapse to strict bounds
+    expect(camera.translate.y).toBe(0);
+    expect(camera.translate.x).toBeCloseTo((1600 - 700 * 0.9) / 2, 4);
   });
 
   it('passes corrections through unclamped when clamping is disabled', () => {
@@ -106,13 +118,88 @@ describe('PagedCamera — clamping invariant', () => {
     expect(camera.translate.y).toBeCloseTo(5000, 4);
   });
 
-  it('clamps corrections at the content edges when enabled', () => {
+  it('allows reachable overpan once the page is zoomed beyond whole-page fit', () => {
     const { camera } = makeCamera();
     camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
     camera.setUserZoom(2); // 1260x1800: x fits (locks center), y overflows
     camera.adjustView(500, -4000);
+    expect(camera.translate.x).toBeCloseTo((1600 - 1260) / 2 - overpanX, 4);
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4); // beyond the top edge, but bounded
+  });
+
+  it('keeps strict bounds at whole-page fit', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.adjustView(500, -500);
+    expect(camera.translate.x).toBeCloseTo((1600 - 630) / 2, 4);
+    expect(camera.translate.y).toBe(0);
+  });
+
+  it('keeps strict bounds when reachable overpan is disabled', () => {
+    const { camera } = makeCamera({ overpan: false });
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2);
+    camera.adjustView(500, -4000);
     expect(camera.translate.x).toBeCloseTo((1600 - 1260) / 2, 4);
-    expect(camera.translate.y).toBe(0); // clamped at the top edge
+    expect(camera.translate.y).toBe(0);
+  });
+
+  it('keeps reachable mode active across zoom-out frames until 100%', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(3); // 1890x2700; strict y range [-1800, 0]
+    camera.adjustView(0, 3000); // activates reachable overpan
+    camera.adjustView(0, -685); // y=-1700, inside old strict range but still in reachable mode
+
+    camera.setUserZoom(1.5); // new strict y range is [-450, 0]
+    expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 1);
+
+    camera.setUserZoom(1);
+    expect(camera.translate.y).toBe(0);
+  });
+
+  it('preserves a user-panned offscreen position when zooming out above 100%', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(3); // strict y range [-1800, 0]
+    camera.adjustView(0, 1000); // y=-1000: inside old bounds, outside the later 1.5x bounds
+
+    camera.setUserZoom(1.5);
+    expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 4);
+
+    camera.setUserZoom(1);
+    expect(camera.translate.y).toBe(0);
+  });
+
+  it('keeps zoom-settle from snapping reachable overpan until a strict settle is requested', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(3);
+    camera.adjustView(0, 1000);
+    camera.setUserZoom(1.5);
+
+    camera.settle(true);
+    expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 4);
+
+    camera.settle(false);
+    expect(camera.translate.y).toBe(900 - 1000 * 0.9 * 1.5);
+  });
+
+  it('allows base overpan at and below 100% zoom when enabled', () => {
+    const { camera } = makeCamera({ baseOverpan: true });
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+
+    camera.adjustView(0, -1000); // pull the page down at 100%
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
+
+    camera.setUserZoom(0.8);
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
+
+    camera.settle(true);
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
+
+    camera.settle(false);
+    expect(camera.translate.y).toBeCloseTo((900 - 1000 * 0.9 * 0.8) / 2, 4);
   });
 });
 
@@ -124,7 +211,7 @@ describe('PagedCamera — panning', () => {
 
     camera.panBy(0, -2000); // scroll down further than the range allows
     pump();
-    expect(camera.translate.y).toBeCloseTo(900 - 1800, 1); // clamped end
+    expect(camera.translate.y).toBeCloseTo(900 - 1800 - overpanY, 1); // reachable overpan end
   });
 
   it('rounds the settled translate to device pixels (compositor seam, #65)', () => {
@@ -147,6 +234,20 @@ describe('PagedCamera — panning', () => {
     expect(s.canRevealLeft).toBe(false);
     expect(s.canRevealRight).toBe(true);
   });
+
+  it('gates swipe-to-flip on reachable overpan edges for fitting axes', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2); // width fits, but reachable-overpan makes it pannable
+
+    expect(camera.edgeState()).toEqual({ canRevealLeft: true, canRevealRight: true });
+
+    camera.adjustView(-10000, 0); // fully right in reachable-overpan space
+    expect(camera.edgeState()).toEqual({ canRevealLeft: false, canRevealRight: true });
+
+    camera.adjustView(20000, 0); // fully left in reachable-overpan space
+    expect(camera.edgeState()).toEqual({ canRevealLeft: true, canRevealRight: false });
+  });
 });
 
 describe('PagedCamera — ZoomSurface', () => {
@@ -160,6 +261,24 @@ describe('PagedCamera — ZoomSurface', () => {
     expect(camera.effectiveScale).toBeCloseTo(1.8, 6);
     surface.correctView(100, 200);
     expect(wrapper.style.transform).toContain('scale(1.8');
+  });
+
+  it('applies zoom anchor correction within reachable horizontal overpan', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    const surface = camera.surface();
+
+    surface.applyZoomLayout(2);
+    camera.adjustView(-1000, 0); // pull page offscreen to the right
+    const before = camera.translate.x;
+    expect(before).toBeGreaterThan((1600 - 700 * 0.9 * 2) / 2);
+
+    surface.applyZoomLayout(2.5);
+    const afterZoom = camera.translate.x;
+    surface.correctView(500, 0); // anchor correction tries to pull back left
+    expect(camera.translate.x).toBe(afterZoom - 500);
+    expect(camera.translate.x).toBeGreaterThanOrEqual((1600 - 700 * 0.9 * 2.5) / 2 - overpanX);
+    expect(camera.translate.x).toBeLessThan((1600 - 700 * 0.9 * 2.5) / 2); // reachable overpan
   });
 
   it('is not ready before content is set', () => {
@@ -279,9 +398,9 @@ describe('PagedCamera — inertial fling (kinetic)', () => {
     // glided further in the drag direction (ty decreased past release)
     expect(camera.translate.y).toBeLessThan(atRelease);
     expect(atRelease).toBeLessThan(releaseY);
-    // came to rest within bounds (ty in [view-scaled, 0])
-    expect(camera.translate.y).toBeGreaterThanOrEqual(900 - 3000 - 1);
-    expect(camera.translate.y).toBeLessThanOrEqual(0 + 1);
+    // came to rest within reachable overpan bounds
+    expect(camera.translate.y).toBeGreaterThanOrEqual(900 - 3000 - overpanY - 1);
+    expect(camera.translate.y).toBeLessThanOrEqual(overpanY + 1);
   });
 
   it('a fling never escapes the clamp bounds', () => {
@@ -290,8 +409,19 @@ describe('PagedCamera — inertial fling (kinetic)', () => {
     drag(camera, 0, 600, 6); // huge upward velocity → would overshoot the bottom edge
     camera.kineticStop();
     pump(300);
-    // clamped to the bottom edge, not flung past it
-    expect(camera.translate.y).toBeGreaterThanOrEqual(900 - 3000 - 1);
+    // clamped to the bottom reachable-overpan edge, not flung past it
+    expect(camera.translate.y).toBeGreaterThanOrEqual(900 - 3000 - overpanY - 1);
+  });
+
+  it('does not snap back to strict edges after a reachable-overpan fling settles', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2);
+    drag(camera, 0, -220, 6); // drag downward, pulling the page top below the viewport top
+    camera.kineticStop();
+    pump(300);
+    expect(camera.translate.y).toBeGreaterThan(0);
+    expect(camera.translate.y).toBeLessThanOrEqual(overpanY + 1);
   });
 
   it('does not fling when animations are instant (e-ink); just settles', () => {

@@ -150,6 +150,37 @@ describe('clampTranslate', () => {
     });
   });
 
+  it('allows capped overpan beyond strict content edges', () => {
+    const scaled = { width: 3200, height: 1800 };
+    expect(
+      clampTranslate({ x: 2000, y: 2000 }, scaled, viewport, {
+        overpan: { width: 400, height: 300 }
+      })
+    ).toEqual({ x: 400, y: 300 });
+    expect(
+      clampTranslate({ x: -3000, y: -2000 }, scaled, viewport, {
+        overpan: { width: 400, height: 300 }
+      })
+    ).toEqual({ x: 1600 - 3200 - 400, y: 900 - 1800 - 300 });
+  });
+
+  it('allows overpan on fitting axes around the centered position', () => {
+    const scaled = { width: 900, height: 700 };
+    const clamped = clampTranslate({ x: 1000, y: -1000 }, scaled, viewport, {
+      overpan: { width: 250, height: 200 }
+    });
+    expect(clamped.x).toBe((1600 - 900) / 2 + 250);
+    expect(clamped.y).toBe((900 - 700) / 2 - 200);
+  });
+
+  it('caps overpan so part of the content remains visible', () => {
+    const clamped = clampTranslate({ x: 5000, y: 5000 }, { width: 100, height: 100 }, viewport, {
+      overpan: { width: 1000, height: 1000 }
+    });
+    expect(clamped.x).toBe((1600 - 100) / 2 + 52);
+    expect(clamped.y).toBe((900 - 100) / 2 + 52);
+  });
+
   it('coerces non-finite translates inside bounds', () => {
     const clamped = clampTranslate(
       { x: NaN, y: Infinity },
@@ -188,5 +219,27 @@ describe('panEdgeState', () => {
     const s = panEdgeState({ x: 200, y: 0 }, { width: 1200, height: 900 }, viewport);
     expect(s.canRevealLeft).toBe(false);
     expect(s.canRevealRight).toBe(false);
+  });
+
+  it('uses reachable-overpan bounds as the swipe gate, not strict content edges', () => {
+    const scaled = { width: 3200, height: 900 };
+    const overpan = { width: 400, height: 0 };
+
+    expect(panEdgeState({ x: 0, y: 0 }, scaled, viewport, { overpan })).toEqual({
+      canRevealLeft: true,
+      canRevealRight: true
+    });
+    expect(panEdgeState({ x: 400, y: 0 }, scaled, viewport, { overpan })).toEqual({
+      canRevealLeft: false,
+      canRevealRight: true
+    });
+    expect(panEdgeState({ x: 1600 - 3200, y: 0 }, scaled, viewport, { overpan })).toEqual({
+      canRevealLeft: true,
+      canRevealRight: true
+    });
+    expect(panEdgeState({ x: 1600 - 3200 - 400, y: 0 }, scaled, viewport, { overpan })).toEqual({
+      canRevealLeft: true,
+      canRevealRight: false
+    });
   });
 });
