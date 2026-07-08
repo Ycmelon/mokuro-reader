@@ -1,38 +1,59 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import SettingsPanel from '$lib/components/Settings/Settings.svelte';
+  import { chatOpen } from '$lib/ai-chat/store';
   import { toggleFullScreen } from '$lib/util/fullscreen';
-  import { pagedZoom } from '$lib/reader/paged-zoom';
-  import { settings, updateSetting } from '$lib/settings';
-  import { ArrowLeft, ArrowRight, Minimize2, ZoomOut, Plus } from '@lucide/svelte';
+  import { navigateBack } from '$lib/util/hash-router';
+  import { settings } from '$lib/settings';
+  import {
+    LogOut,
+    Maximize2,
+    MessageSquare,
+    Minimize2,
+    Plus,
+    Settings as SettingsIcon
+  } from '@lucide/svelte';
 
   interface Props {
-    left: (_e: any, ingoreTimeOut?: boolean) => void;
-    right: (_e: any, ingoreTimeOut?: boolean) => void;
     visible?: boolean;
   }
 
-  let { left, right, visible = true }: Props = $props();
+  let { visible = true }: Props = $props();
 
   let open = $state(false);
+  let settingsOpen = $state(false);
+  let fullscreen = $state(false);
 
-  function handleZoom() {
-    if ($pagedZoom) {
-      // Paged mode: transient whole-page view (the mode setting is untouched).
-      $pagedZoom.zoomFitToScreen();
-    } else {
-      // Continuous mode has no transient equivalent — pages lay out from the
-      // mode setting, so "fit" means switching it (the Z-key path).
-      updateSetting('continuousZoomDefault', 'zoomFitToScreen');
-    }
+  function syncFullscreenState() {
+    fullscreen = Boolean(document.fullscreenElement);
+  }
+
+  onMount(() => {
+    syncFullscreenState();
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+    };
+  });
+
+  function handleExit() {
+    navigateBack();
     open = false;
   }
 
-  function handleLeft(_e: Event) {
-    left(_e, true);
+  function openSettings() {
+    settingsOpen = true;
     open = false;
   }
 
-  function handleRight(_e: Event) {
-    right(_e, true);
+  function handleFullscreen() {
+    toggleFullScreen();
+    open = false;
+  }
+
+  function openChat() {
+    chatOpen.set(true);
     open = false;
   }
 
@@ -47,35 +68,36 @@
     {#if open}
       <div class="mb-2 flex flex-col items-center gap-2">
         <button
-          onclick={() => {
-            toggleFullScreen();
-            open = false;
-          }}
+          onclick={handleExit}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          aria-label="Toggle fullscreen"
+          aria-label="Exit reader"
         >
-          <Minimize2 class="h-6 w-6" />
+          <LogOut class="h-6 w-6" />
         </button>
         <button
-          onclick={handleZoom}
+          onclick={openSettings}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          aria-label="Zoom to fit"
+          aria-label="Open settings"
         >
-          <ZoomOut class="h-6 w-6" />
+          <SettingsIcon class="h-6 w-6" />
         </button>
         <button
-          onclick={handleRight}
+          onclick={handleFullscreen}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          aria-label="Next page"
+          aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
-          <ArrowRight class="h-6 w-6" />
+          {#if fullscreen}
+            <Minimize2 class="h-6 w-6" />
+          {:else}
+            <Maximize2 class="h-6 w-6" />
+          {/if}
         </button>
         <button
-          onclick={handleLeft}
+          onclick={openChat}
           class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-gray-300 shadow-lg hover:bg-gray-600 focus:outline-none dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          aria-label="Previous page"
+          aria-label="Open chat"
         >
-          <ArrowLeft class="h-6 w-6" />
+          <MessageSquare class="h-6 w-6" />
         </button>
       </div>
     {/if}
@@ -83,7 +105,7 @@
     <!-- Main toggle button -->
     <button
       onclick={toggleMenu}
-      class="flex h-12 w-12 items-center justify-center rounded-full text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white"
+      class="reader-hud flex h-12 w-12 items-center justify-center rounded-full text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white"
       aria-label="Quick actions menu"
       style="transition: transform 0.3s ease; transform: rotate({open ? 45 : 0}deg);"
     >
@@ -91,3 +113,5 @@
     </button>
   </div>
 {/if}
+
+<SettingsPanel bind:open={settingsOpen} />

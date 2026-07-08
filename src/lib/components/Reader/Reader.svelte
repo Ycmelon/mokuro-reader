@@ -56,8 +56,6 @@
   import AiChatPanel from '$lib/components/AiChat/AiChatPanel.svelte';
   import { chatOpen, closeChat, openChatWithExplain } from '$lib/ai-chat/store';
   import { SkipBack, ChevronLeft, ChevronRight, SkipForward } from '@lucide/svelte';
-  import SettingsButton from './SettingsButton.svelte';
-  import AiChatButton from './AiChatButton.svelte';
   import { getCharCount } from '$lib/util/count-chars';
   import QuickActions from './QuickActions.svelte';
   import VerticalScrollReader from './VerticalScrollReader.svelte';
@@ -1102,9 +1100,7 @@
   <title>{volume?.volume_title || 'Volume'}</title>
 </svelte:head>
 {#if volume && pages && pages.length > 0 && volumeData && $progress?.[volume.volume_uuid] !== undefined}
-  <QuickActions {left} {right} visible={chromeVisible} />
-  <AiChatButton visible={chromeVisible} />
-  <SettingsButton visible={chromeVisible} />
+  <QuickActions visible={chromeVisible} />
   <SelectionToolbar onCreateFlashcard={handleSelectionCreateFlashcard} />
   {#if chromeVisible}
     <Popover
