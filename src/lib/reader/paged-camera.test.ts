@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PagedCamera } from './paged-camera';
+import {
+  PagedCamera,
+  OVERPAN_VIEWPORT_FRACTION_X,
+  OVERPAN_VIEWPORT_FRACTION_Y
+} from './paged-camera';
 import { baseTransform } from './paged-zoom-layout';
 import { setInstantAnimations } from './animator';
 
 const viewport = { width: 1600, height: 900 };
-const overpanX = viewport.width * 0.3;
-const overpanY = viewport.height * 0.3;
+// Derive from the production constants so the test can never drift out of sync
+// with them (as it silently did when the Y fraction was bumped to 0.5).
+const overpanX = viewport.width * OVERPAN_VIEWPORT_FRACTION_X;
+const overpanY = viewport.height * OVERPAN_VIEWPORT_FRACTION_Y;
 
 function makeWrapper() {
   return { style: { transform: '', transformOrigin: '' } } as unknown as HTMLElement;
@@ -106,6 +112,7 @@ describe('PagedCamera — clamping invariant', () => {
     expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 1);
 
     camera.setUserZoom(1); // fully reset to 100%: collapse to strict bounds
+    pump(); // the overpanned collapse now glides to strict rather than snapping
     expect(camera.translate.y).toBe(0);
     expect(camera.translate.x).toBeCloseTo((1600 - 700 * 0.9) / 2, 4);
   });
@@ -155,7 +162,85 @@ describe('PagedCamera — clamping invariant', () => {
     expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 1);
 
     camera.setUserZoom(1);
+    pump(); // overpanned → glides the collapse to strict rather than snapping
     expect(camera.translate.y).toBe(0);
+  });
+
+  it('glides the overpan collapse when a pinch-out reaches 100% instead of snapping', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2);
+    camera.adjustView(0, -4000); // pull the page top into the top reachable overpan
+    camera.settle(true);
+    const overpannedY = camera.translate.y;
+    expect(overpannedY).toBeGreaterThan(100); // sitting well into overpan
+
+    // Simulate the pinch's final frames crossing 100%, pinning content each
+    // frame the way the controller's zoom-anchor correction does.
+    const midY = 450;
+    const cy = (midY - camera.translate.y) / camera.effectiveScale;
+    const drive = (z: number) => {
+      camera.setUserZoom(z);
+      const actualY = camera.translate.y + cy * camera.effectiveScale;
+      camera.correctZoomView(0, actualY - midY);
+    };
+    drive(1.02); // still overpanned above fit
+    expect(camera.translate.y).toBeCloseTo(overpannedY, 0);
+
+    drive(1); // crosses to fit — the collapse glide STARTS (must not snap)
+    expect(camera.translate.y).toBeCloseTo(overpannedY, 0); // still overpanned this frame
+
+    // Let the collapse animator run: it eases to strict bounds (ty = 0) over
+    // several frames — not a single-frame jump.
+    const trajectory: number[] = [];
+    for (let i = 0; i < 60 && camera.translate.y > 0.5; i++) {
+      pump(1);
+      trajectory.push(camera.translate.y);
+    }
+    expect(trajectory.length).toBeGreaterThan(3); // took multiple frames = a glide
+    expect(camera.translate.y).toBeCloseTo(0, 4); // landed centered at fit
+
+    // Trajectory is monotonic toward 0 (no overshoot/jitter).
+    for (let i = 1; i < trajectory.length; i++) {
+      expect(trajectory[i]).toBeLessThanOrEqual(trajectory[i - 1] + 0.5);
+    }
+  });
+
+  it('cancels the collapse glide and restores overpan when pinched back out', () => {
+    const { camera } = makeCamera();
+    camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+    camera.setUserZoom(2);
+    camera.adjustView(0, -4000);
+    camera.settle(true);
+    const overpannedY = camera.translate.y;
+
+    const cy = (450 - camera.translate.y) / camera.effectiveScale;
+    camera.setUserZoom(1); // start the collapse
+    camera.correctZoomView(0, camera.translate.y + cy * camera.effectiveScale - 450);
+    pump(2); // glide a little toward center
+    expect(camera.translate.y).toBeLessThan(overpannedY);
+
+    camera.setUserZoom(2.5); // pinch back out mid-glide → cancel, resume overpan
+    camera.adjustView(0, -4000); // can overpan again
+    camera.settle(true);
+    expect(camera.translate.y).toBeGreaterThan(100);
+  });
+
+  it('does not glide-collapse when animations are instant (e-ink); snaps as before', () => {
+    setInstantAnimations(true);
+    try {
+      const { camera } = makeCamera();
+      camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
+      camera.setUserZoom(2);
+      camera.adjustView(0, -4000);
+      camera.settle(true);
+      expect(camera.translate.y).toBeGreaterThan(100);
+
+      camera.setUserZoom(1); // instant: strict clamp, no glide
+      expect(camera.translate.y).toBe(0);
+    } finally {
+      setInstantAnimations(false);
+    }
   });
 
   it('preserves a user-panned offscreen position when zooming out above 100%', () => {
@@ -168,6 +253,7 @@ describe('PagedCamera — clamping invariant', () => {
     expect(camera.translate.y).toBeCloseTo(900 - 1000 * 0.9 * 1.5 - overpanY, 4);
 
     camera.setUserZoom(1);
+    pump(); // overpanned → glides the collapse to strict rather than snapping
     expect(camera.translate.y).toBe(0);
   });
 
@@ -323,14 +409,20 @@ describe('PagedCamera — projectCentered (double-tap target)', () => {
     const { camera } = makeCamera();
     camera.applyBase(tall, baseTransform('zoomFitToScreen', tall, viewport, true));
     camera.setUserZoom(2);
-    camera.adjustView(0, -1000); // pull the page down into reachable overpan
+    camera.adjustView(0, -1000); // pull the page down to the top reachable-overpan edge
+    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
 
-    const tap = { x: 800, y: 450 };
+    const tap = { x: 800, y: 600 };
     const p = camera.projectClamped(tap, 1, tap);
 
-    expect(camera.translate.y).toBeCloseTo(overpanY, 4);
     expect(p.x).toBeCloseTo(800, 4);
-    expect(p.y).toBeCloseTo(90, 4);
+    // At 100% the page fits vertically, so that axis centers (t.y = 0) and the
+    // tapped content lands at its offset below the page top scaled by the
+    // base/effective ratio (fit base 0.9 sampled at 0.9·2). Derived, not
+    // hardcoded, so it tracks overpanY automatically.
+    const sampledScale = 0.9 * 2;
+    const fitBaseScale = 0.9;
+    expect(p.y).toBeCloseTo(((tap.y - overpanY) / sampledScale) * fitBaseScale, 4);
   });
 });
 
@@ -393,10 +485,9 @@ describe('PagedCamera — inertial fling (kinetic)', () => {
 
   function drag(camera: PagedCamera, stepX: number, stepY: number, frames: number) {
     camera.kineticStart();
-    pump(1); // let the track loop arm
     for (let i = 0; i < frames; i++) {
-      camera.adjustView(stepX, stepY); // pointer-space delta → content moves
-      pump(1); // a track sample for this frame
+      clock += 16.67; // time passes between pointer moves (feeds the velocity)
+      camera.adjustView(stepX, stepY); // pointer-space delta → content moves + sampled
     }
   }
 

@@ -26,8 +26,8 @@ import {
 } from './paged-zoom-layout';
 import type { ZoomSurface } from './zoom-controller';
 
-const OVERPAN_VIEWPORT_FRACTION_X = 0.3;
-const OVERPAN_VIEWPORT_FRACTION_Y = 0.5;
+export const OVERPAN_VIEWPORT_FRACTION_X = 0.3;
+export const OVERPAN_VIEWPORT_FRACTION_Y = 0.5;
 const ZOOMED_EPSILON = 0.001;
 
 export interface PagedCameraConfig {
@@ -53,6 +53,15 @@ export class PagedCamera {
   private panX: Animator;
   private panY: Animator;
   private kinetic: KineticControls;
+  // Collapse glide: when a pinch-out reaches whole-page fit/100%, the view
+  // slides from its overpanned position back to strict bounds instead of
+  // snapping. It runs on its own progress animator (0→1) and renders WITHOUT
+  // clamping — at fit there is zero positional freedom, so a per-frame clamp
+  // would force dead-center on frame one and there would be nothing to glide.
+  private collapsing = false;
+  private collapseAnim: Animator;
+  private collapseFrom: Translate = { x: 0, y: 0 };
+  private collapseTo: Translate = { x: 0, y: 0 };
 
   constructor(config: PagedCameraConfig) {
     this.config = config;
@@ -71,6 +80,22 @@ export class PagedCamera {
         this.clampAndRender(false);
       },
       { factor: 0.22, epsilon: 0.5, onSettle: () => this.settle(true) }
+    );
+    this.collapseAnim = new Animator(
+      0,
+      (t) => {
+        this.tx = this.collapseFrom.x + (this.collapseTo.x - this.collapseFrom.x) * t;
+        this.ty = this.collapseFrom.y + (this.collapseTo.y - this.collapseFrom.y) * t;
+        this.render();
+      },
+      {
+        factor: 0.22,
+        epsilon: 0.002,
+        onSettle: () => {
+          this.collapsing = false;
+          this.settle(true);
+        }
+      }
     );
     // Inertial panning (restored from panzoom's kinetic.js). It polls the
     // live translate during a drag and, on release, glides it with momentum.
@@ -150,6 +175,22 @@ export class PagedCamera {
   }
 
   /**
+   * True when `userZoom` is in the reachable-overpan zone — zoomed past 100%
+   * with the content overflowing whole-page fit. Crossing OUT of this zone
+   * (a pinch-out reaching fit/100%) is where the view must collapse back to
+   * strict bounds; see the collapse glide in setUserZoom.
+   */
+  private inOverpanZone(userZoom: number): boolean {
+    const content = this.content;
+    if (!content || this.config.isOverpanEnabled?.() === false) return false;
+    if (this.config.isBaseOverpanEnabled?.() === true) return false;
+    const viewport = this.config.getViewport();
+    const fitScale = Math.min(viewport.width / content.width, viewport.height / content.height);
+    const effectiveScale = this.base.scale * userZoom;
+    return userZoom > 1 + ZOOMED_EPSILON && effectiveScale > fitScale + ZOOMED_EPSILON;
+  }
+
+  /**
    * Set the displayed content (from page data, not DOM measurement) and its
    * mode base, placing the view at the base alignment for the current user
    * zoom. Callers reset or convert the user zoom level beforehand (keepZoom
@@ -178,14 +219,74 @@ export class PagedCamera {
   /** Set the user zoom multiplier (controller frame step). Clamps and renders. */
   setUserZoom(zoom: number): void {
     const allowBaseOverpan = this.config.isBaseOverpanEnabled?.() === true;
+
+    // A collapse glide owns the translate. Keep tracking the scale; if the user
+    // pinches back out past fit, cancel it and resume normal zoom handling.
+    if (this.collapsing) {
+      if (this.inOverpanZone(zoom)) {
+        this.cancelCollapse();
+      } else {
+        this.userZoom = zoom;
+        this.render();
+        return;
+      }
+    }
+
+    const wasInOverpanZone = this.inOverpanZone(this.userZoom);
     const preserveOverpan =
       (allowBaseOverpan || zoom > 1 + ZOOMED_EPSILON) &&
       (this.reachableOverpanActive || this.isOutsideStrictBounds());
     this.userZoom = zoom;
+
+    // Pinch-out just crossed from the reachable-overpan zone back to fit/100%
+    // while the view is still overpanned → glide the collapse to strict bounds
+    // instead of snapping. Double-tap reset arrives here already centered (its
+    // correction homed on the strict landing as it zoomed), so there is nothing
+    // outside strict to collapse and it is unaffected.
+    if (
+      wasInOverpanZone &&
+      !allowBaseOverpan &&
+      !areAnimationsInstant() &&
+      !this.inOverpanZone(zoom) &&
+      this.startCollapseIfOverpanned()
+    ) {
+      return;
+    }
+
     this.clampAndRender(true, preserveOverpan);
     if (!allowBaseOverpan && zoom <= 1 + ZOOMED_EPSILON) {
       this.reachableOverpanActive = false;
     }
+  }
+
+  /**
+   * If the current translate sits outside strict bounds (a pinch left the page
+   * overpanned as it reached fit), start the collapse glide to the strict
+   * resting position and return true. Returns false when already within strict
+   * bounds (nothing to glide) so the caller falls through to a normal clamp.
+   */
+  private startCollapseIfOverpanned(): boolean {
+    if (!this.config.isClampingEnabled() || !this.content) return false;
+    const strict = this.clamped({ x: this.tx, y: this.ty }, false);
+    if (Math.abs(strict.x - this.tx) < 1 && Math.abs(strict.y - this.ty) < 1) return false;
+    this.panX.stop();
+    this.panY.stop();
+    this.kinetic.cancel();
+    this.reachableOverpanActive = false;
+    this.collapsing = true;
+    this.collapseFrom = { x: this.tx, y: this.ty };
+    this.collapseTo = strict;
+    this.render(); // hold the overpanned position at the new scale for frame 0
+    this.collapseAnim.snapTo(0);
+    this.collapseAnim.setTarget(1);
+    return true;
+  }
+
+  /** Abandon an in-flight collapse glide, keeping the current position. */
+  private cancelCollapse(): void {
+    if (!this.collapsing) return;
+    this.collapsing = false;
+    this.collapseAnim.stop();
   }
 
   /**
@@ -195,6 +296,10 @@ export class PagedCamera {
   adjustView(dx: number, dy: number): void {
     this.tx -= dx;
     this.ty -= dy;
+    // Feed the fling tracker the real pan motion in translate space (tx moved
+    // by -dx). No-op unless a drag is in progress; velocity is measured here,
+    // not by polling the transform, so clamp/overpan writes can't corrupt it.
+    this.kinetic.sample(-dx, -dy);
     this.syncPan();
     this.clampAndRender(false);
     this.noteZoomedUserPan();
@@ -202,6 +307,7 @@ export class PagedCamera {
 
   /** Zoom anchor correction in screen space, bounded by reachable-overpan. */
   correctZoomView(dx: number, dy: number): void {
+    if (this.collapsing) return; // the collapse glide owns the translate
     this.tx -= dx;
     this.ty -= dy;
     this.syncPan();
@@ -222,6 +328,7 @@ export class PagedCamera {
 
   /** Stop pan animations and any inertial glide, keeping the current position. */
   stopPan(): void {
+    this.cancelCollapse();
     this.panX.stop();
     this.panY.stop();
     this.kinetic.cancel();
@@ -245,6 +352,9 @@ export class PagedCamera {
    * image-smaller-than-viewport case #65 is about.
    */
   settle(allowOverpan = false): void {
+    // A collapse glide settles itself when it completes; don't let an
+    // interleaved settle (pinch release, zoom-controller onSettled) snap it.
+    if (this.collapsing) return;
     const dpr = this.config.getDevicePixelRatio?.() ?? 1;
     const preserveOverpan =
       allowOverpan && (this.reachableOverpanActive || this.isOutsideStrictBounds());
@@ -321,6 +431,7 @@ export class PagedCamera {
   destroy(): void {
     this.panX.destroy();
     this.panY.destroy();
+    this.collapseAnim.destroy();
     this.kinetic.cancel();
   }
 
