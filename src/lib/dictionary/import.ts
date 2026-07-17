@@ -16,8 +16,8 @@ import type { StoredTerm, StoredTermMeta, Sense, Headword, Gloss } from './types
 // keeps short keys; the JMdict → reader mapping lives here so it has a single
 // source of truth.
 
-/** `[text, infoTags, common01]` */
-type RawHeadword = [string, string[], 0 | 1];
+/** `[text, infoTags, common01, priorities, appliesToKanji01?]` */
+type RawHeadword = [string, string[], 0 | 1, string[], (0 | 1)?];
 
 interface RawSense {
   p: string[];
@@ -42,13 +42,18 @@ interface RawWord {
 // jmdict-simplified spells gloss types out in full; our union matches.
 const GLOSS_TYPES = new Set(['literal', 'figurative', 'explanation', 'trademark']);
 
-function toHeadword([text, tags, common]: RawHeadword): Headword {
+export const JMDICT_SCHEMA_VERSION = 2;
+export const TERM_META_SCHEMA_VERSION = 1;
+
+function toHeadword([text, tags, common, p, app]: RawHeadword): Headword {
   return {
     text,
     info: tags,
     obscure: isObscureHeadword(tags),
     hidden: isSearchOnlyHeadword(tags),
-    priority: common === 1
+    priority: common === 1,
+    p,
+    ...(app !== undefined ? { app } : {})
   };
 }
 
@@ -100,7 +105,6 @@ function wordToStoredTerm(w: RawWord, dictionaryId: number): StoredTerm {
   const allPos = new Set<string>();
   for (const s of senses) for (const p of s.pos) allPos.add(p);
 
-  const common = writings.some((h) => h.priority) || readings.some((h) => h.priority);
   const keys = [...new Set([...writings.map((h) => h.text), ...readings.map((h) => h.text)])];
 
   return {
@@ -110,7 +114,6 @@ function wordToStoredTerm(w: RawWord, dictionaryId: number): StoredTerm {
     writings,
     readings,
     rules: posToRules(allPos),
-    score: common ? 1 : 0,
     senses
   };
 }
@@ -131,7 +134,7 @@ export async function importJmdictDictionary(
     title: string;
     revision: string;
   };
-  if (index.format !== 'mokurod-jmdict-1')
+  if (index.format !== 'mokurod-jmdict-2')
     throw new Error(`Unsupported jmdict format "${index.format}"`);
 
   const existing = await dictDb.dictionaries.where('title').equals(index.title).first();
@@ -149,7 +152,8 @@ export async function importJmdictDictionary(
     format: 0,
     importedAt: new Date(),
     entryCount: 0,
-    complete: false
+    complete: false,
+    schemaVersion: JMDICT_SCHEMA_VERSION
   });
 
   const termBanks = entries
@@ -276,7 +280,8 @@ export async function importTermMetaDictionary(
     format: index.format,
     importedAt: new Date(),
     entryCount: 0,
-    complete: false
+    complete: false,
+    schemaVersion: TERM_META_SCHEMA_VERSION
   });
 
   // Tags (rarely present for pitch/freq, imported for completeness).

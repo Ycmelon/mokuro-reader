@@ -1,7 +1,12 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
 import { dictDb } from './db';
-import { importJmdictDictionary, importTermMetaDictionary } from './import';
+import {
+  importJmdictDictionary,
+  importTermMetaDictionary,
+  JMDICT_SCHEMA_VERSION,
+  TERM_META_SCHEMA_VERSION
+} from './import';
 import { invalidateTermMetaCache } from './lookup';
 
 /**
@@ -22,6 +27,8 @@ export interface BundledDictionary {
   /** Which importer to run: the jmdict term dictionary or a Yomitan term_meta
    *  (pitch/frequency) dictionary. */
   kind: 'jmdict' | 'termmeta';
+  /** Required runtime shape for an already-imported dictionary. */
+  schemaVersion: number;
 }
 
 export const BUNDLED_DICTIONARIES: BundledDictionary[] = [
@@ -29,19 +36,15 @@ export const BUNDLED_DICTIONARIES: BundledDictionary[] = [
     label: 'Dictionary',
     filename: 'jmdict.zip',
     titlePrefix: 'JMdict (simplified)',
-    kind: 'jmdict'
+    kind: 'jmdict',
+    schemaVersion: JMDICT_SCHEMA_VERSION
   },
   {
     label: 'Pitch Accents',
     filename: 'pitch-accents.zip',
     titlePrefix: 'JMdict Pitch Accents',
-    kind: 'termmeta'
-  },
-  {
-    label: 'Frequencies',
-    filename: 'frequency.zip',
-    titlePrefix: 'JMdict Frequencies',
-    kind: 'termmeta'
+    kind: 'termmeta',
+    schemaVersion: TERM_META_SCHEMA_VERSION
   }
 ];
 
@@ -73,6 +76,7 @@ function setStatus(label: string, patch: Partial<BundledDictStatus>): void {
 }
 
 const inFlight = new Map<string, Promise<void>>();
+const RETIRED_DICTIONARY_PREFIXES = ['JMdict Frequencies'];
 
 /**
  * Ensures every bundled dictionary is present in IndexedDB. Idempotent and
@@ -87,6 +91,13 @@ export async function ensureBundledDictionaries(): Promise<void> {
     navigator.storage.persist().catch(() => {
       /* best effort */
     });
+  }
+
+  // Frequency metadata no longer participates in ranking or display. Remove
+  // previously bundled copies as part of the same startup migration that stops
+  // downloading the retired asset.
+  for (const titlePrefix of RETIRED_DICTIONARY_PREFIXES) {
+    await deleteByPrefix(titlePrefix);
   }
 
   // Mark everything not already confirmed ready as "queued" up front, so a
@@ -186,9 +197,14 @@ const MAX_ATTEMPTS = 2;
  * the count match additionally catches storage eviction. This rejects partial
  * imports (the "0 entries · ready" bug).
  */
-async function verifyHealthy(titlePrefix: string): Promise<number | null> {
+async function verifyHealthy(titlePrefix: string, schemaVersion: number): Promise<number | null> {
   const record = await dictDb.dictionaries.filter((d) => d.title.startsWith(titlePrefix)).first();
-  if (!record || record.id === undefined || record.entryCount <= 0) {
+  if (
+    !record ||
+    record.id === undefined ||
+    record.entryCount <= 0 ||
+    record.schemaVersion !== schemaVersion
+  ) {
     return null;
   }
   // entryCount spans both tables (a pitch dictionary stores term_meta, not terms).
@@ -203,7 +219,7 @@ async function loadDictionary(dict: BundledDictionary): Promise<void> {
   // Surface the health-check phase so the row doesn't sit silently on "queued"
   // while the DB opens and the existing-data check runs.
   setStatus(dict.label, { state: 'importing', progress: 0, message: 'Checking existing data…' });
-  const healthyCount = await verifyHealthy(dict.titlePrefix);
+  const healthyCount = await verifyHealthy(dict.titlePrefix, dict.schemaVersion);
   if (healthyCount !== null) {
     setStatus(dict.label, {
       state: 'ready',
@@ -245,7 +261,7 @@ async function loadDictionary(dict: BundledDictionary): Promise<void> {
       });
 
       // Confirm the import actually landed before declaring success.
-      const count = await verifyHealthy(dict.titlePrefix);
+      const count = await verifyHealthy(dict.titlePrefix, dict.schemaVersion);
       if (count === null) throw new Error('Import verification failed');
 
       setStatus(dict.label, { state: 'ready', progress: 100, message: 'Ready', entryCount: count });

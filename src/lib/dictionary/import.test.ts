@@ -13,11 +13,11 @@ const WORDS = [
   {
     i: 1358280,
     k: [
-      ['食べる', [], 1],
-      ['喰べる', ['rK'], 0],
-      ['たべ得る', ['sK'], 0]
+      ['食べる', [], 1, ['i1']],
+      ['喰べる', ['rK'], 0, []],
+      ['たべ得る', ['sK'], 0, []]
     ],
-    r: [['たべる', [], 1]],
+    r: [['たべる', [], 1, ['i1'], 1]],
     s: [
       { p: ['v1', 'vt'], f: [], m: [], d: [], n: [], g: [['to eat', null]], x: [], l: [] },
       {
@@ -34,8 +34,8 @@ const WORDS = [
   },
   {
     i: 1000060,
-    k: [['あの', [], 1]],
-    r: [['あの', [], 1]],
+    k: [['あの', [], 1, ['i1']]],
+    r: [['あの', [], 1, ['i1'], 0]],
     s: [
       {
         p: ['int'],
@@ -59,7 +59,7 @@ async function buildZip(): Promise<Blob> {
   await zw.add(
     'index.json',
     new TextReader(
-      JSON.stringify({ format: 'mokurod-jmdict-1', title: 'JMdict (simplified)', revision: 'test' })
+      JSON.stringify({ format: 'mokurod-jmdict-2', title: 'JMdict (simplified)', revision: 'test' })
     )
   );
   await zw.add('term_bank_1.json', new TextReader(JSON.stringify(WORDS)));
@@ -81,6 +81,8 @@ describe('importJmdictDictionary', () => {
     // Search-only forms stay in the lookup index so they still resolve.
     expect(w.keys.sort()).toEqual(['たべる', 'たべ得る', '喰べる', '食べる']);
     expect(w.rules).toBe('v1');
+    expect(w.writings[0].p).toEqual(['i1']);
+    expect(w.readings[0]).toMatchObject({ p: ['i1'], app: 1 });
     // The rare 喰べる writing is flagged obscure; 食べる (common) is primary.
     expect(w.writings[0].text).toBe('食べる');
     expect(w.writings.find((h) => h.text === '喰べる')?.obscure).toBe(true);
@@ -89,6 +91,19 @@ describe('importJmdictDictionary', () => {
     expect(searchOnly?.hidden).toBe(true);
     expect(searchOnly?.obscure).toBe(false);
     expect(w.writings.at(-1)?.text).toBe('たべ得る');
+  });
+
+  it('stores the v2 schema gate on the imported dictionary', async () => {
+    const dictionary = await dictDb.dictionaries
+      .where('title')
+      .equals('JMdict (simplified)')
+      .first();
+    expect(dictionary?.schemaVersion).toBe(2);
+  });
+
+  it('carries the XML nokanji applicability bit onto readings', async () => {
+    const ano = (await dictDb.terms.where('keys').equals('あの').toArray())[0];
+    expect(ano.readings[0]).toMatchObject({ p: ['i1'], app: 0 });
   });
 
   it('resolves a search-only form to its entry', async () => {

@@ -61,6 +61,8 @@ export interface DictionaryMeta {
   styleCss?: string;
   /** True only once every term bank has been imported. Guards against partial imports. */
   complete?: boolean;
+  /** Runtime data-shape version. Bundled imports with an older shape are replaced. */
+  schemaVersion?: number;
 }
 
 export interface StoredTag {
@@ -91,8 +93,6 @@ export interface StoredTerm {
   /** Space-joined deinflection rule tokens (subset of v1 v5 vk vs vz adj-i),
    *  the union across the word's senses. Empty for non-inflecting words. */
   rules: string;
-  /** Ranking score (higher = more common). */
-  score: number;
   senses: Sense[];
 }
 
@@ -107,6 +107,10 @@ export interface Headword {
   hidden: boolean;
   /** Priority (common) spelling or reading — carries a star. */
   priority: boolean;
+  /** Granular JMdict priority markers in 10ten's abbreviated key space. */
+  p: string[];
+  /** Readings only: 0 when JMdict marks the reading as `nokanji`, otherwise 1. */
+  app?: 0 | 1;
   /** Raw JMdict info tags (iK, ik, oK, ok, rK, rk, sK, sk, io…) for tooltips. */
   info: string[];
 }
@@ -145,7 +149,6 @@ export interface LookupResult {
   /** Separated senses (POS/tags/glosses), for 10ten-style layout. */
   senses: Sense[];
   dictionaryTitle: string;
-  score: number;
   /** The entry as a whole is a high-priority (common) word. */
   priority: boolean;
   inflectionPath: string[];

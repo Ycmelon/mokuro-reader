@@ -4,41 +4,50 @@ import { dictDb } from './db';
 import { findBestMatch, invalidateTermMetaCache } from './lookup';
 import type { StoredTerm, StoredTermMeta, Headword, Sense } from './types';
 
-// Word-level (jmdict-simplified) fixtures. Each StoredTerm is a whole entry with
-// all its writings/readings already merged; `priority` on a headword stands in
-// for JMdict's `common` flag.
-
 function hw(
   text: string,
-  opts: { obscure?: boolean; hidden?: boolean; priority?: boolean } = {}
+  opts: {
+    obscure?: boolean;
+    hidden?: boolean;
+    priority?: boolean;
+    info?: string[];
+    p?: string[];
+    app?: 0 | 1;
+  } = {}
 ): Headword {
   return {
     text,
     obscure: !!opts.obscure,
     hidden: !!opts.hidden,
-    priority: !!opts.priority,
-    info: []
+    priority: opts.priority ?? !!opts.p?.length,
+    info: opts.info ?? [],
+    p: opts.p ?? [],
+    ...(opts.app !== undefined ? { app: opts.app } : {})
   };
 }
 
-const defSense: Sense = {
-  pos: [],
-  field: [],
-  misc: [],
-  dialect: [],
-  info: [],
-  glosses: [{ text: 'def' }],
-  xref: [],
-  langSource: [],
-  examples: []
-};
+function sense(misc: string[] = []): Sense {
+  return {
+    pos: [],
+    field: [],
+    misc,
+    dialect: [],
+    info: [],
+    glosses: [{ text: 'def' }],
+    xref: [],
+    langSource: [],
+    examples: []
+  };
+}
+
+const defSense = sense();
 
 function word(p: {
   sequence: number;
   writings?: Headword[];
   readings: Headword[];
   rules?: string;
-  score?: number;
+  senses?: Sense[];
 }): StoredTerm {
   const writings = p.writings ?? [];
   return {
@@ -48,8 +57,7 @@ function word(p: {
     readings: p.readings,
     keys: [...new Set([...writings.map((w) => w.text), ...p.readings.map((r) => r.text)])],
     rules: p.rules ?? '',
-    score: p.score ?? 0,
-    senses: [defSense]
+    senses: p.senses ?? [defSense]
   };
 }
 
@@ -60,152 +68,190 @@ beforeAll(async () => {
     format: 0,
     importedAt: new Date(),
     entryCount: 0,
-    complete: true
+    complete: true,
+    schemaVersion: 2
   });
 
   const terms: StoredTerm[] = [
-    // 見る (common, v1) with an old-kanji writing 視る in the same entry.
     word({
       sequence: 1000,
-      writings: [hw('見る', { priority: true }), hw('視る', { obscure: true })],
-      readings: [hw('みる')],
-      rules: 'v1',
-      score: 1
+      writings: [hw('見る', { p: ['i1'] }), hw('視る', { obscure: true })],
+      readings: [hw('みる', { p: ['i1'], app: 1 })],
+      rules: 'v1'
     }),
-    // 日 / 火 — kanji words read ひ (so ひ matches them only as a reading).
-    word({
-      sequence: 2000,
-      writings: [hw('日', { priority: true })],
-      readings: [hw('ひ')],
-      score: 1
-    }),
-    word({
-      sequence: 3000,
-      writings: [hw('火', { priority: true })],
-      readings: [hw('ひ')],
-      score: 1
-    }),
-    // A standalone kana word ひ — should outrank 日/火 on a kana click.
-    word({ sequence: 4000, readings: [hw('ひ')], score: 0 }),
-    // 分かる vs 分かつ — identical (both common, v5); only the frequency dictionary
-    // can rank the far more common 分かる first.
+    // Per-reading priority breaks this deinflection tie.
     word({
       sequence: 5000,
-      writings: [hw('分かる', { priority: true })],
-      readings: [hw('わかる', { priority: true })],
-      rules: 'v5',
-      score: 1
+      writings: [hw('分かる', { p: ['i1'] })],
+      readings: [hw('わかる', { p: ['i1'], app: 1 })],
+      rules: 'v5'
     }),
     word({
       sequence: 6000,
-      writings: [hw('分かつ', { priority: true })],
-      readings: [hw('わかつ', { priority: true })],
-      rules: 'v5',
-      score: 1
+      writings: [hw('分かつ', { p: ['i2'] })],
+      readings: [hw('わかつ', { p: ['i2'], app: 1 })],
+      rules: 'v5'
     }),
-    // 頭: clicking the kanji, the common あたま entry (頭 is a common writing) must
-    // outrank the rare counter とう entry (頭 not marked common there).
     word({
       sequence: 7000,
-      writings: [hw('頭', { priority: true })],
-      readings: [hw('あたま', { priority: true })],
-      score: 1
+      writings: [hw('頭', { p: ['i1'] })],
+      readings: [hw('あたま', { p: ['i1'], app: 1 })]
     }),
-    word({ sequence: 7001, writings: [hw('頭')], readings: [hw('とう')], score: 1 }),
-    // よく: clicking the kana, the frequent readings 欲・よく (greed) and 良く・よく
-    // (well) must outrank the rare よく reading of 翼 (whose common reading is
-    // つばさ). Frequency is scored per matched (writing, reading), so 翼 can't
-    // borrow つばさ's rank — matching Yomitan/10ten.
-    word({
-      sequence: 8000,
-      writings: [hw('欲', { priority: true })],
-      readings: [hw('よく')],
-      score: 1
-    }),
-    word({
-      sequence: 8001,
-      writings: [hw('良く', { priority: true })],
-      readings: [hw('よく', { priority: true })],
-      score: 1
-    }),
-    word({
-      sequence: 9000,
-      writings: [hw('翼', { priority: true })],
-      readings: [hw('よく'), hw('つばさ', { priority: true })],
-      score: 1
-    }),
-    // いっそ (adverb) and いそいそ (adverb). Clicking いっそいっそ, a full emphatic
-    // collapse turns the whole run into いそいそ; the clean word いっそ at a shorter
-    // prefix must win over that longer, lossy match.
-    word({ sequence: 10000, readings: [hw('いっそ', { priority: true })], score: 1 }),
-    word({ sequence: 11000, readings: [hw('いそいそ', { priority: true })], score: 1 }),
-    // す (vinegar) and すごい. Clicking the emphatic すっごい, only the full collapse
-    // (→ すごい) reaches a real word, so the lossy longer match must still win over
-    // the trivial clean single-char す.
+    word({ sequence: 7001, writings: [hw('頭')], readings: [hw('とう', { app: 1 })] }),
+    // Text-processor longest-match regression fixtures.
+    word({ sequence: 10000, readings: [hw('いっそ', { p: ['i1'], app: 0 })] }),
+    word({ sequence: 11000, readings: [hw('いそいそ', { p: ['i1'], app: 0 })] }),
     word({
       sequence: 12000,
-      writings: [hw('酢', { priority: true })],
-      readings: [hw('す')],
-      score: 1
+      writings: [hw('酢', { p: ['i1'] })],
+      readings: [hw('す', { app: 1 })]
     }),
     word({
       sequence: 13000,
-      writings: [hw('凄い', { priority: true })],
-      readings: [hw('すごい', { priority: true })],
-      rules: 'adj-i',
-      score: 1
-    })
+      writings: [hw('凄い', { p: ['i1'] })],
+      readings: [hw('すごい', { p: ['i1'], app: 1 })],
+      rules: 'adj-i'
+    }),
+    // 風: the earlier/longer 振り entry's matched 風 headword has no priority.
+    word({
+      sequence: 1361130,
+      writings: [hw('振り', { p: ['i1', 'n1', 'nf13'] }), hw('風', { info: ['rK'] })],
+      readings: [hw('ふり', { p: ['i1', 'n1', 'nf13'], app: 1 })]
+    }),
+    word({
+      sequence: 1499720,
+      writings: [hw('風', { p: ['i1'] })],
+      readings: [hw('かぜ', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 1499730,
+      writings: [hw('風', { p: ['i1', 's1'] })],
+      readings: [hw('ふう', { p: ['i1', 's1'], app: 1 })]
+    }),
+    word({
+      sequence: 1317330,
+      writings: [hw('自ずから', { p: ['i1'] }), hw('自ら')],
+      readings: [hw('おのずから', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 1317340,
+      writings: [hw('自ら', { p: ['i1', 'n1', 'nf01'] })],
+      readings: [hw('みずから', { p: ['i1', 'n1', 'nf01'], app: 1 })]
+    }),
+    word({
+      sequence: 1535300,
+      writings: [hw('目印', { p: ['i1', 'n2', 'nf29'] }), hw('目標'), hw('目じるし')],
+      readings: [hw('めじるし', { p: ['i1', 'n2', 'nf29'], app: 1 })]
+    }),
+    word({
+      sequence: 1535650,
+      writings: [hw('目標', { p: ['i1', 'n1', 'nf01'] })],
+      readings: [hw('もくひょう', { p: ['i1', 'n1', 'nf01'], app: 1 })]
+    }),
+    word({
+      sequence: 1005180,
+      writings: [hw('先'), hw('先刻')],
+      readings: [hw('さっき', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 1387210,
+      writings: [hw('先', { p: ['i1'] }), hw('前'), hw('先き')],
+      readings: [hw('さき', { p: ['i1'], app: 1 })]
+    }),
+    // Kana-primary because every kanji spelling is rK and the senses are uk.
+    word({ sequence: 1597170, readings: [hw('たまたま', { app: 0 })] }),
+    word({
+      sequence: 1597180,
+      writings: [
+        hw('偶々', { info: ['rK'] }),
+        hw('偶偶', { info: ['rK'] }),
+        hw('偶', { info: ['rK'] }),
+        hw('適', { info: ['rK'] })
+      ],
+      readings: [hw('たまたま', { p: ['i1'], app: 1 })],
+      senses: [sense(['uk'])]
+    }),
+    // The obscure-reading check must run before the uk/nokanji clauses.
+    word({
+      sequence: 2000,
+      writings: [hw('日')],
+      readings: [hw('ひ', { p: ['n1'], app: 1 })]
+    }),
+    word({
+      sequence: 3000,
+      writings: [hw('火')],
+      readings: [hw('ひ', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 3001,
+      writings: [hw('檜')],
+      readings: [hw('ひ', { info: ['ok'], app: 0 })],
+      senses: [sense(['uk'])]
+    }),
+    word({
+      sequence: 3002,
+      writings: [hw('羆')],
+      readings: [hw('ひ', { info: ['rk'], app: 0 })],
+      senses: [sense(['uk'])]
+    }),
+    // よく must score the reached reading, never 翼's common つばさ reading.
+    word({
+      sequence: 8000,
+      writings: [hw('欲')],
+      readings: [hw('よく', { p: ['n1'], app: 1 })]
+    }),
+    word({
+      sequence: 8001,
+      writings: [hw('良く')],
+      readings: [hw('よく', { p: ['i1'], app: 1 })],
+      senses: [sense(['uk'])]
+    }),
+    word({
+      sequence: 9000,
+      writings: [hw('翼')],
+      readings: [hw('よく', { app: 1 }), hw('つばさ', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 1600000,
+      writings: [hw('鳴る')],
+      readings: [hw('なる', { p: ['i1', 's1'], app: 1 })]
+    }),
+    word({
+      sequence: 1600001,
+      writings: [hw('成る')],
+      readings: [hw('なる', { p: ['i1'], app: 1 })],
+      senses: [sense(['uk']), sense(['uk']), sense()]
+    }),
+    word({
+      sequence: 1700000,
+      writings: [hw('私事', { p: ['i1'] }), hw('私')],
+      readings: [hw('わたくしごと', { p: ['i1'], app: 1 })]
+    }),
+    word({
+      sequence: 1700001,
+      writings: [hw('私', { p: ['i1', 'n1', 'nf01'] })],
+      readings: [hw('わたし', { p: ['i1', 'n1', 'nf01'], app: 1 })]
+    }),
+    // The two documented noisy-tail cases remain longest-match-first.
+    word({
+      sequence: 1800000,
+      writings: [hw('経る')],
+      readings: [hw('へる', { app: 1 })],
+      rules: 'v1'
+    }),
+    word({ sequence: 1800001, readings: [hw('へま', { app: 0 })] }),
+    word({
+      sequence: 1800002,
+      writings: [hw('どうって事ない')],
+      readings: [hw('どうってことない', { app: 1 })]
+    }),
+    word({ sequence: 1800003, readings: [hw('どる', { app: 0 })], rules: 'v5' })
   ];
   await dictDb.terms.bulkAdd(terms);
 
   const meta: StoredTermMeta[] = [
     { dictionaryId: 1, expression: '見る', reading: 'みる', mode: 'pitch', positions: [1] },
-    { dictionaryId: 1, expression: 'みる', reading: 'みる', mode: 'pitch', positions: [1] },
-    // Frequency scores: 分かる is far more common than 分かつ. Reading-scoped, the
-    // way the bundled dict (and Yomitan) key them: per (writing, reading).
-    {
-      dictionaryId: 1,
-      expression: '分かる',
-      reading: 'わかる',
-      mode: 'freq',
-      frequency: '53',
-      frequencyValue: 53.51
-    },
-    {
-      dictionaryId: 1,
-      expression: '分かつ',
-      reading: 'わかつ',
-      mode: 'freq',
-      frequency: '45',
-      frequencyValue: 45.5
-    },
-    // Production frequency data (JMdict/10ten priority) for the よく case, keyed
-    // per (writing, reading). 翼 has only a つばさ row — no よく row at all — so
-    // clicking よく scores it 0, while 欲 and 良く carry their own よく frequency.
-    {
-      dictionaryId: 1,
-      expression: '欲',
-      reading: 'よく',
-      mode: 'freq',
-      frequency: '54',
-      frequencyValue: 54.65
-    },
-    {
-      dictionaryId: 1,
-      expression: '良く',
-      reading: 'よく',
-      mode: 'freq',
-      frequency: '34',
-      frequencyValue: 34.0
-    },
-    {
-      dictionaryId: 1,
-      expression: '翼',
-      reading: 'つばさ',
-      mode: 'freq',
-      frequency: '54',
-      frequencyValue: 54.7
-    }
+    { dictionaryId: 1, expression: 'みる', reading: 'みる', mode: 'pitch', positions: [1] }
   ];
   await dictDb.termMeta.bulkAdd(meta);
   invalidateTermMetaCache();
@@ -217,67 +263,63 @@ describe('findBestMatch', () => {
     expect(res).not.toBeNull();
     const entry = res!.state.results[0];
     expect(entry.expression).toBe('見る');
-    const writings = Object.fromEntries(entry.writings.map((w) => [w.text, w.obscure]));
-    expect(writings).toEqual({ 見る: false, 視る: true });
+    expect(Object.fromEntries(entry.writings.map((w) => [w.text, w.obscure]))).toEqual({
+      見る: false,
+      視る: true
+    });
     expect(entry.inflectionPath.length).toBeGreaterThan(0);
   });
 
   it('attaches pitch accent to the matched reading', async () => {
     const res = await findBestMatch('みる', 0);
-    const entry = res!.state.results[0];
-    expect(entry.pitches).toEqual([{ reading: 'みる', positions: [1] }]);
+    expect(res!.state.results[0].pitches).toEqual([{ reading: 'みる', positions: [1] }]);
   });
 
-  it('ranks a standalone kana word above kanji words it is only a reading of', async () => {
-    const res = await findBestMatch('ひ', 0);
-    expect(res!.state.results[0].expression).toBe('ひ');
-  });
-
-  it('uses frequency to break ties score/priority cannot (分かる > 分かつ)', async () => {
+  it('uses matched-reading priority to break a deinflection tie', async () => {
     const res = await findBestMatch('わかってる', 0);
     const exprs = res!.state.results.map((r) => r.expression);
-    expect(exprs).toContain('分かる');
-    expect(exprs).toContain('分かつ');
     expect(exprs.indexOf('分かる')).toBeLessThan(exprs.indexOf('分かつ'));
   });
 
-  it('ranks a common writing above a rare homophone entry (頭: あたま > とう)', async () => {
+  it('ranks a common matched writing above a rare homograph', async () => {
     const res = await findBestMatch('頭', 0);
     const readings = res!.state.results.map((r) => r.reading);
     expect(readings.indexOf('あたま')).toBeLessThan(readings.indexOf('とう'));
   });
 
-  it('scores the matched reading, not the entry (よく: 欲 > 良く > 翼)', async () => {
-    const res = await findBestMatch('よく', 0);
-    const exprs = res!.state.results.map((r) => r.expression);
-    // 翼's よく reading carries no frequency of its own, so it ranks below the
-    // words whose よく reading is common — it must not borrow つばさ's rank.
-    expect(exprs.indexOf('欲')).toBeLessThan(exprs.indexOf('翼'));
-    expect(exprs.indexOf('良く')).toBeLessThan(exprs.indexOf('翼'));
-    expect(exprs.indexOf('欲')).toBeLessThan(exprs.indexOf('良く'));
+  it('keeps longest-match-first behavior through emphatic preprocessing', async () => {
+    const repeated = await findBestMatch('いっそいっそ', 0);
+    expect(repeated!.utf16Length).toBe(6);
+    expect(repeated!.state.results[0].expression).toBe('いそいそ');
+    expect(repeated!.state.results.map((r) => r.expression)).toContain('いっそ');
+
+    const geminated = await findBestMatch('すっごい', 0);
+    expect(geminated!.utf16Length).toBe(4);
+    expect(geminated!.state.results[0].expression).toBe('凄い');
   });
 
-  it('lets full emphatic collapse extend the match, longest wins (Yomitan)', async () => {
-    // Yomitan ranks by longest source substring. いっそいっそ full-collapses to the
-    // real word いそいそ (6 chars), which outranks the shorter clean いっそ (3). This
-    // is Yomitan's actual behaviour: the emphatic っ in いっそ is collapsible, so a
-    // longer coincidental word can swallow it. See the port notes for the tradeoff.
-    const res = await findBestMatch('いっそいっそ', 0);
+  it.each([
+    // Section 7 deliberately accepts 10ten's 風【ふう】 > 風【かぜ】 ordering.
+    ['風', '風', 'ふう'],
+    ['自ら', '自ら', 'みずから'],
+    ['目標', '目標', 'もくひょう'],
+    ['先', '先', 'さき'],
+    ['たまたま', '偶々', 'たまたま'],
+    ['ひ', '火', 'ひ'],
+    ['よく', '良く', 'よく'],
+    ['なる', '成る', 'なる'],
+    ['私', '私', 'わたし']
+  ])('ranks %s as %s【%s】 first', async (lookup, expression, reading) => {
+    const res = await findBestMatch(lookup, 0);
     expect(res).not.toBeNull();
-    expect(res!.utf16Length).toBe(6);
-    expect(res!.state.results[0].expression).toBe('いそいそ');
-    // The shorter clean parse is still offered, just ranked below the longer one.
-    expect(res!.state.results.map((r) => r.expression)).toContain('いっそ');
+    expect(res!.state.results[0]).toMatchObject({ expression, reading });
   });
 
-  it('resolves genuine gemination via full collapse (すっごい → すごい)', async () => {
-    const res = await findBestMatch('すっごい', 0);
-    expect(res).not.toBeNull();
-    // The whole すっごい (4 chars) collapses to すごい and ranks first.
-    expect(res!.utf16Length).toBe(4);
-    expect(res!.state.results[0].expression).toBe('凄い');
-    // 酢 (す) also matches at length 1, but ranks below the longer 凄い.
-    const exprs = res!.state.results.map((r) => r.expression);
-    expect(exprs.indexOf('凄い')).toBeLessThan(exprs.indexOf('酢'));
+  it('leaves the two documented longest-match cases untouched', async () => {
+    const politeConditional = await findBestMatch('ヘマしたら', 0);
+    expect(politeConditional!.state.results[0].expression).toBe('経る');
+
+    const kansaiTail = await findBestMatch('どうってことない', 0);
+    expect(kansaiTail!.state.results[0].expression).toBe('どうって事ない');
   });
 });

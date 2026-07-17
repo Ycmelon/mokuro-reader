@@ -6,6 +6,7 @@ import { detectEraYear, type EraYearMatch } from './era';
 import type { LookupResult, StoredTerm, Headword, PitchAccent, Sense } from './types';
 import { LanguageTransformer } from './vendor/language-transformer.js';
 import { japaneseTransformsExtended } from './japanese-transforms-extra';
+import { getKanaHeadwordType, getPriority, type DictionaryWordResult } from './word-match-sorting';
 
 const japaneseTransformer = new LanguageTransformer();
 japaneseTransformer.addDescriptor(japaneseTransformsExtended);
@@ -32,8 +33,8 @@ interface DatabaseDeinflection {
 }
 
 /** A matched dictionary word, deduplicated across the deinflections that reached
- *  it, carrying the ranking fields Yomitan's term sort needs. Mirrors the subset
- *  of Yomitan's TermDictionaryEntry we display. */
+ *  it. Text-derived ranking fields remain Yomitan-owned; entry-derived ranking
+ *  fields and per-headword match ranges are 10ten-owned. */
 interface DictionaryEntry {
   term: StoredTerm;
   /** Length of the source substring that resolved to this word (Yomitan
@@ -48,21 +49,14 @@ interface DictionaryEntry {
   textProcessorChains: string[][];
   /** Inflection-rule chains across all reaching deinflections (shortest used). */
   inflectionChains: string[][];
-  /** How many reaching forms matched the word's own headword exactly (Yomitan
-   *  sourceTermExactMatchCount) — this is what floats a standalone kana word
-   *  above a kanji word it is only a reading of, without any bespoke heuristic. */
-  sourceTermExactMatchCount: number;
   /** The single inflection chain kept for display (shortest). */
   inflectionPath: string[];
-  /** The deinflected forms (writings/readings) that actually reached this word.
-   *  Frequency is scored only over these, mirroring how Yomitan keeps a separate
-   *  entry per matched reading and how 10ten gates priority on `matchRange`: a
-   *  rare reading must not borrow the frequency of a common homograph reading it
-   *  wasn't looked up by (翼 clicked as よく must not inherit つばさ's rank). */
-  matchedForms: Set<string>;
-  /** Max granular frequency across the word's matched headwords (0 without a
-   *  freq dict). */
-  freqScore: number;
+  /** Transient 10ten-shaped word with `matchRange` only on reached headwords. */
+  wordResult: DictionaryWordResult;
+  /** 1 = kanji/kana-primary match; 2 = kana merely read by a kanji headword. */
+  headwordType: 1 | 2;
+  /** Granular priority of the matched headword(s). */
+  priority: number;
 }
 
 // ── Deinflection (Translator._getAlgorithmDeinflections) ─────────────────────
@@ -151,12 +145,24 @@ async function attachDatabaseEntries(deinflections: DatabaseDeinflection[]): Pro
 
 // ── Entry assembly (Translator._getDictionaryEntries + sort) ──────────────────
 
-/** Whether a deinflected form matches the word's own headword exactly, the way
- *  Yomitan's per-row `deinflectedText === term` does: true when the form equals a
- *  kanji writing, or (for kana-only words) equals a reading. */
-function isExactHeadwordMatch(term: StoredTerm, deinflectedText: string): boolean {
-  if (term.writings.some((w) => w.text === deinflectedText)) return true;
-  return term.writings.length === 0 && term.readings.some((r) => r.text === deinflectedText);
+function makeWordResult(term: StoredTerm, matchedForm: string): DictionaryWordResult {
+  const mark = <T extends Headword>(headword: T) =>
+    headword.text === matchedForm
+      ? { ...headword, matchRange: [0, matchedForm.length] as [number, number] }
+      : { ...headword };
+  return {
+    k: term.writings.map(mark),
+    r: term.readings.map(mark),
+    s: term.senses
+  };
+}
+
+function markMatchedForm(result: DictionaryWordResult, matchedForm: string): void {
+  for (const headword of [...result.k, ...result.r]) {
+    if (headword.text === matchedForm && !headword.matchRange) {
+      headword.matchRange = [0, matchedForm.length];
+    }
+  }
 }
 
 function shortestChainLength(chains: string[][]): number {
@@ -184,7 +190,6 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
 
     for (const term of d.databaseEntries) {
       if (term.id === undefined) continue;
-      const exact = isExactHeadwordMatch(term, d.deinflectedText) ? 1 : 0;
       const existing = byId.get(term.id);
 
       if (!existing) {
@@ -194,15 +199,15 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
           transformedTextLength: d.transformedText.length,
           textProcessorChains: [...d.textProcessorChains],
           inflectionChains: [d.inflectionRules],
-          sourceTermExactMatchCount: exact,
           inflectionPath: d.inflectionRules,
-          matchedForms: new Set([d.deinflectedText]),
-          freqScore: 0
+          wordResult: makeWordResult(term, d.deinflectedText),
+          headwordType: 1,
+          priority: 0
         });
         continue;
       }
 
-      existing.matchedForms.add(d.deinflectedText);
+      markMatchedForm(existing.wordResult, d.deinflectedText);
 
       // Yomitan keys the keep/replace/merge decision on transformedText length:
       // a shorter (more lossily preprocessed) spelling never displaces or merges
@@ -215,7 +220,6 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
         existing.textProcessorChains = [...d.textProcessorChains];
         existing.inflectionChains = [d.inflectionRules];
         existing.inflectionPath = d.inflectionRules;
-        existing.sourceTermExactMatchCount = exact;
       } else {
         // Equal transformedText length: merge ranking chains; keep the shortest
         // inflection path for display.
@@ -228,7 +232,6 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
         if (d.inflectionRules.length < existing.inflectionPath.length) {
           existing.inflectionPath = d.inflectionRules;
         }
-        existing.sourceTermExactMatchCount = Math.max(existing.sourceTermExactMatchCount, exact);
       }
     }
   }
@@ -236,25 +239,21 @@ function buildDictionaryEntries(deinflections: DatabaseDeinflection[]): {
   return { entries: [...byId.values()], originalTextLength };
 }
 
-/**
- * Port of Yomitan's `_sortTermDictionaryEntries` tiebreak ladder. `matchPrimaryReading`
- * is dropped (no reader analogue). Frequency comes from an installed frequency
- * dictionary (higher `freqScore` = more common); `score` folds JMdict's "common"
- * priority in at import time.
- */
+/** Yomitan's text-derived ladder followed by 10ten's entry-derived ladder. */
 function sortEntries(entries: DictionaryEntry[]): void {
-  const primaryLen = (e: DictionaryEntry): number =>
-    e.term.writings[0]?.text.length ?? e.term.readings[0]?.text.length ?? 0;
+  for (const entry of entries) {
+    const kanaReading = entry.wordResult.r.find((r) => !!r.matchRange);
+    entry.headwordType = kanaReading ? getKanaHeadwordType(kanaReading, entry.wordResult) : 1;
+    entry.priority = getPriority(entry.wordResult);
+  }
 
   entries.sort(
     (a, b) =>
       b.maxOriginalTextLength - a.maxOriginalTextLength ||
       shortestChainLength(a.textProcessorChains) - shortestChainLength(b.textProcessorChains) ||
       shortestChainLength(a.inflectionChains) - shortestChainLength(b.inflectionChains) ||
-      b.sourceTermExactMatchCount - a.sourceTermExactMatchCount ||
-      b.freqScore - a.freqScore ||
-      b.term.score - a.term.score ||
-      primaryLen(b) - primaryLen(a)
+      a.headwordType - b.headwordType ||
+      b.priority - a.priority
   );
 }
 
@@ -383,11 +382,10 @@ function buildEraResult(era: EraYearMatch): LookupResult {
   return {
     expression: era.text,
     reading: '',
-    writings: [{ text: era.text, obscure: false, hidden: false, priority: false, info: [] }],
+    writings: [{ text: era.text, obscure: false, hidden: false, priority: false, p: [], info: [] }],
     readings: [],
     senses: [sense],
     dictionaryTitle: 'Calendar',
-    score: 0,
     priority: false,
     inflectionPath: [],
     pitches: []
@@ -430,7 +428,7 @@ async function getDictTitle(dictionaryId: number): Promise<string> {
   return title;
 }
 
-// Pitch/frequency dictionaries are optional; most sessions have none, so cache
+// Pitch dictionaries are optional; most sessions have none, so cache
 // the presence check to skip a per-lookup query when the table is empty.
 let hasTermMeta: boolean | null = null;
 async function ensureHasTermMeta(): Promise<boolean> {
@@ -438,8 +436,7 @@ async function ensureHasTermMeta(): Promise<boolean> {
   return hasTermMeta;
 }
 
-/** Invalidate the cached term_meta presence flag (call after (re)importing a
- *  dictionary that may add pitch/frequency data). */
+/** Invalidate the cached term_meta presence flag after (re)importing metadata. */
 export function invalidateTermMetaCache(): void {
   hasTermMeta = null;
 }
@@ -471,86 +468,11 @@ async function lookupPitches(writings: Headword[], readings: Headword[]): Promis
   return out;
 }
 
-/**
- * Fills each entry's `freqScore` from an installed frequency dictionary, scored
- * over the word's *matched* headwords only.
- *
- * Yomitan keeps a separate dictionary entry per reading and attaches frequency
- * per (term, reading) headword, so a rare reading is ranked by its own frequency,
- * never a common homograph's. We merge all readings into one entry, so we
- * reproduce that here: frequency is looked up per (writing, reading) pair and an
- * entry only counts the pairs whose form was actually looked up. Clicking the
- * kana よく scores 翼 by (翼, よく) — which carries no frequency — not by its
- * common つばさ reading, matching Yomitan/10ten. Reading-agnostic freq rows (no
- * `reading` field) are treated as writing-element scores: they apply to direct
- * writing matches, and to kana-only entries where the reading is the expression.
- * One bulk query for every form; a no-op when no term_meta is present.
- */
-async function assignFrequencyScores(entries: DictionaryEntry[]): Promise<void> {
-  if (entries.length === 0 || !(await ensureHasTermMeta())) return;
-
-  const texts = new Set<string>();
-  for (const e of entries) {
-    for (const w of e.term.writings) texts.add(w.text);
-    for (const r of e.term.readings) texts.add(r.text);
-  }
-  if (texts.size === 0) return;
-
-  const rows = await dictDb.termMeta
-    .where('expression')
-    .anyOf([...texts])
-    .toArray();
-
-  // Frequency keyed by (expression, reading); reading-agnostic rows land under
-  // `writingFreq` and only apply when that expression itself was matched.
-  const pairFreq = new Map<string, Map<string, number>>();
-  const writingFreq = new Map<string, number>();
-  for (const row of rows) {
-    if (row.mode !== 'freq' || typeof row.frequencyValue !== 'number') continue;
-    if (typeof row.reading === 'string' && row.reading.length > 0) {
-      let byReading = pairFreq.get(row.expression);
-      if (!byReading) pairFreq.set(row.expression, (byReading = new Map()));
-      if (row.frequencyValue > (byReading.get(row.reading) ?? 0)) {
-        byReading.set(row.reading, row.frequencyValue);
-      }
-    } else if (row.frequencyValue > (writingFreq.get(row.expression) ?? 0)) {
-      writingFreq.set(row.expression, row.frequencyValue);
-    }
-  }
-  if (pairFreq.size === 0 && writingFreq.size === 0) return;
-
-  for (const e of entries) {
-    const writings = e.term.writings.map((w) => w.text);
-    const readings = new Set(e.term.readings.map((r) => r.text));
-    // Reading-scoped rows are keyed by the written form; kana-only words key by
-    // the reading itself.
-    const keys = writings.length > 0 ? writings : [...readings];
-
-    let max = 0;
-    for (const form of e.matchedForms) {
-      if (readings.has(form)) {
-        // Matched via a reading: score that reading against each written key.
-        for (const key of keys) {
-          max = Math.max(max, pairFreq.get(key)?.get(form) ?? 0);
-          if (writings.length === 0 && key === form) {
-            max = Math.max(max, writingFreq.get(key) ?? 0);
-          }
-        }
-      } else {
-        // Matched via a writing (kanji lookup): score the writing element only.
-        max = Math.max(max, writingFreq.get(form) ?? 0);
-      }
-    }
-    e.freqScore = max;
-  }
-}
-
 /** Ranks assembled entries and renders them into popup state, joining dictionary
- *  titles, frequency scores and pitch accents. Returns null if nothing matched. */
+ *  titles and pitch accents. Returns null if nothing matched. */
 async function assembleResults(entries: DictionaryEntry[]): Promise<PopupState | null> {
   if (entries.length === 0) return null;
 
-  await assignFrequencyScores(entries);
   sortEntries(entries);
 
   const dictionaryIds = [...new Set(entries.map((e) => e.term.dictionaryId))];
@@ -568,7 +490,6 @@ async function assembleResults(entries: DictionaryEntry[]): Promise<PopupState |
         readings: e.term.readings,
         senses: e.term.senses,
         dictionaryTitle: titleMap.get(e.term.dictionaryId) ?? 'Unknown',
-        score: e.term.score,
         priority,
         inflectionPath: e.inflectionPath,
         pitches: await lookupPitches(e.term.writings, e.term.readings)
