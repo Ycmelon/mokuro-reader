@@ -257,18 +257,31 @@ export const FIELD_LABELS: Record<string, string> = {
   zool: 'zoology'
 };
 
+// Keyed by both the JMdict entity codes our data actually stores (`ksb`, `ktb`,
+// …) and 10ten's shorter internal codes (`ks`, `kt`, …), since the labels were
+// copied from 10ten but the importer passes JMdict's spelling straight through.
 export const DIAL_LABELS: Record<string, string> = {
   '9s': 'Kyushu dialect',
   bra: 'Brazilian dialect',
   ho: 'Hokkaido dialect',
+  hob: 'Hokkaido dialect',
   ks: 'Kansai dialect',
+  ksb: 'Kansai dialect',
   kt: 'Kanto dialect',
+  ktb: 'Kanto dialect',
   ky: 'Kyoto dialect',
+  kyb: 'Kyoto dialect',
+  kyu: 'Kyushu dialect',
   na: 'Nagano dialect',
+  nab: 'Nagano dialect',
   ok: 'Ryuukyuu dialect',
   os: 'Osaka dialect',
+  osb: 'Osaka dialect',
+  rkb: 'Ryuukyuu dialect',
   th: 'Tohoku dialect',
+  thb: 'Tohoku dialect',
   ts: 'Tosa dialect',
+  tsb: 'Tosa dialect',
   tsug: 'Tsugaru dialect'
 };
 
