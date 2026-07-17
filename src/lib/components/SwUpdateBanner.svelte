@@ -23,7 +23,7 @@
 
 {#if $swUpdateAvailable}
   <div
-    class="fixed right-4 bottom-4 left-4 z-50 flex flex-col gap-2 rounded-lg bg-blue-600 px-4 py-3 text-white shadow-lg sm:right-4 sm:left-auto sm:max-w-sm"
+    class="fixed right-4 bottom-[calc(1rem+var(--bottom-nav-offset))] left-4 z-50 flex flex-col gap-2 rounded-lg bg-blue-600 px-4 py-3 text-white shadow-lg sm:right-4 sm:left-auto sm:max-w-sm"
   >
     <div class="flex items-center justify-between gap-3">
       <div class="flex-1">

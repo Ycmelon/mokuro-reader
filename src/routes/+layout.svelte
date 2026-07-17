@@ -118,7 +118,10 @@
 {:else}
   <div class="h-full min-h-[100svh] text-gray-900 dark:text-white">
     <NavBar />
-    {@render children?.()}
+    <!-- Clearance for the fixed mobile BottomNav; the offset is 0 where the bar isn't shown -->
+    <div class="pb-[var(--bottom-nav-offset)]">
+      {@render children?.()}
+    </div>
     <Snackbar />
     <DictionaryProgressToast />
     <ConfirmationPopup />

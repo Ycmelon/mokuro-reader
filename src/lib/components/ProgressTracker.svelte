@@ -13,7 +13,7 @@
 
 {#if $progressTrackerStore.processes.length > 0}
   <div
-    class="fixed right-4 bottom-4 z-50 w-80 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg transition-all duration-200 dark:border-gray-700 dark:bg-gray-800"
+    class="fixed right-4 bottom-[calc(1rem+var(--bottom-nav-offset))] z-50 w-80 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg transition-all duration-200 dark:border-gray-700 dark:bg-gray-800"
   >
     <div
       class="flex cursor-pointer items-center justify-between bg-primary-100 p-3 dark:bg-primary-900"

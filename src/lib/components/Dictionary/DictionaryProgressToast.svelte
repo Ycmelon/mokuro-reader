@@ -63,7 +63,7 @@
 
 {#if visible}
   <div
-    class="fixed bottom-4 left-1/2 z-[1100] w-[min(92vw,22rem)] -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-xl dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+    class="fixed bottom-[calc(1rem+var(--bottom-nav-offset))] left-1/2 z-[1100] w-[min(92vw,22rem)] -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-xl dark:border-gray-700 dark:bg-gray-800 dark:text-white"
     role="status"
     aria-live="polite"
   >

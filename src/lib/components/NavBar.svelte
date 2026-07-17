@@ -9,7 +9,7 @@
   } from '@lucide/svelte';
   import { nav, isOnReader } from '$lib/util/hash-router';
   import Settings from './Settings/Settings.svelte';
-  import UploadModal from './UploadModal.svelte';
+  import BottomNav from './BottomNav.svelte';
   import Icon from '$lib/assets/icon.webp';
   import { showSnackbar } from '$lib/util';
   import { tokenManager } from '$lib/util/sync/providers/google-drive';
@@ -18,7 +18,6 @@
 
   // Use $state to make these reactive
   let settingsOpen = $state(false);
-  let uploadModalOpen = $state(false);
   let isReader = $state(false);
 
   // Read unified provider state synchronously
@@ -87,8 +86,8 @@
     settingsOpen = true;
   }
 
-  function openUploadModal() {
-    uploadModalOpen = true;
+  function navigateToUpload() {
+    nav.toUpload();
   }
 
   function navigateToCloud() {
@@ -141,7 +140,7 @@
         <span class="text-xl font-semibold dark:text-white">Mokurod</span>
       </button>
     </NavBrand>
-    <div class="flex gap-5 md:order-2">
+    <div class="hidden gap-5 md:order-2 md:flex">
       <button
         onclick={navigateToReadingSpeed}
         class="flex h-6 w-6 items-center justify-center"
@@ -152,7 +151,11 @@
       <button onclick={openSettings} class="flex h-6 w-6 items-center justify-center">
         <SettingsIcon class="h-6 w-6 cursor-pointer hover:text-primary-700" />
       </button>
-      <button onclick={openUploadModal} class="flex h-6 w-6 items-center justify-center">
+      <button
+        onclick={navigateToUpload}
+        class="flex h-6 w-6 items-center justify-center"
+        title="Import"
+      >
         <Upload class="h-6 w-6 cursor-pointer hover:text-primary-700" />
       </button>
       <button
@@ -214,5 +217,8 @@
   </Navbar>
 </div>
 
+{#if !isReader}
+  <BottomNav onSettings={openSettings} {settingsOpen} />
+{/if}
+
 <Settings bind:open={settingsOpen} />
-<UploadModal bind:open={uploadModalOpen} />

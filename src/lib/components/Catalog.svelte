@@ -380,7 +380,9 @@
     {:else}
       <p>Your catalog is currently empty.</p>
       <p class="text-sm text-gray-500">
-        To add manga, click the <Upload class="inline h-4 w-4" /> button in the top right.
+        To add manga, click the <Upload class="inline h-4 w-4" />
+        <span class="hidden md:inline">button in the top right.</span>
+        <span class="md:hidden">Upload button below.</span>
       </p>
     {/if}
   </div>

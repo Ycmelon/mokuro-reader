@@ -12,8 +12,11 @@
   import { requestPersistentStorage } from '$lib/util/upload';
   import { nav } from '$lib/util/hash-router';
   import { progressTrackerStore } from '$lib/util/progress-tracker';
+  import ImportPage from '$lib/components/ImportPage.svelte';
   import { onMount } from 'svelte';
 
+  // Present when arriving via a cross-site import deep link; otherwise this view
+  // is the plain import page reached from the nav.
   const uploadParams = getUploadParamsFromLocation(window.location.search, window.location.hash);
   const request = parseHtmlDownloadRequest(uploadParams);
 
@@ -180,17 +183,18 @@
   }
 
   onMount(() => {
-    if (!request) {
-      showSnackbar('Invalid import URL - missing manga or volume parameter');
-      onCancel();
-    } else {
+    if (request) {
       const displayName = decodeURIComponent(request.volume || '');
       promptConfirmation(`Import ${displayName} into catalog?`, onImport, onCancel);
     }
   });
 </script>
 
-<!-- This view redirects immediately, so minimal UI needed -->
-<div class="flex h-[90svh] items-center justify-center">
-  <p class="text-gray-500 dark:text-gray-400">Preparing import...</p>
-</div>
+{#if request}
+  <!-- Deep-link import: prompts and redirects immediately, so minimal UI needed -->
+  <div class="flex h-[90svh] items-center justify-center">
+    <p class="text-gray-500 dark:text-gray-400">Preparing import...</p>
+  </div>
+{:else}
+  <ImportPage />
+{/if}

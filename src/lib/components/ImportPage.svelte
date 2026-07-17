@@ -1,18 +1,12 @@
 <script lang="ts">
-  import { Accordion, AccordionItem, Button, Dropzone, Modal, Spinner } from 'flowbite-svelte';
+  import { Accordion, AccordionItem, Button, Dropzone, Spinner } from 'flowbite-svelte';
   import { Upload } from '@lucide/svelte';
-  import { importFiles, isImporting } from '$lib/import';
+  import { importFiles } from '$lib/import';
   import { scanFiles } from '$lib/upload';
   import { onMount } from 'svelte';
   import { formatBytes } from '$lib/util/upload';
   import { toClipboard } from '$lib/util';
-
-  interface Props {
-    open?: boolean;
-  }
-
-  // In Svelte 5, we need to make sure the open prop is properly bindable
-  let { open = $bindable(false) }: Props = $props();
+  import { nav } from '$lib/util/hash-router';
 
   let promise: Promise<void> | undefined = $state(undefined);
   let files: FileList | undefined = $state(undefined);
@@ -38,7 +32,7 @@
     const filesToImport = files ? [...files] : draggedFiles;
     if (filesToImport && filesToImport.length > 0) {
       promise = importFiles(filesToImport).then(() => {
-        open = false;
+        nav.toCatalog();
       });
     }
   }
@@ -107,89 +101,16 @@
   let activeStyle = $state(defaultStyle);
 </script>
 
-<Modal title="Import" bind:open outsideclose onclose={reset}>
+<svelte:head>
+  <title>Import - Mokurod</title>
+</svelte:head>
+
+<div class="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+  <h1 class="text-2xl font-semibold">Import</h1>
   {#await promise}
     <h2 class="flex justify-center">Importing...</h2>
     <div class="text-center"><Spinner /></div>
   {:then}
-    <Accordion flush>
-      <AccordionItem>
-        {#snippet header()}What can I add?{/snippet}
-        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
-          <p>
-            This reader is designed for manga processed with <a
-              href="https://github.com/kha-white/mokuro"
-              target="_blank"
-              class="text-primary-600 hover:underline dark:text-primary-500">mokuro</a
-            >, which extracts Japanese text from manga pages for use with popup dictionaries like
-            Yomitan.
-          </p>
-          <p>
-            To add a volume, provide your manga images (as a <b>ZIP</b>, <b>CBZ</b>, or folder)
-            along with the <code>.mokuro</code> file that contains the OCR text data. The reader pairs
-            them automatically — whether the mokuro file is inside the archive, alongside it, or in a
-            parent folder.
-          </p>
-          <p>
-            <b>Image-only comics:</b> You can also add comics without a <code>.mokuro</code> file. These
-            won't have text overlays, but are useful for reference copies in other languages.
-          </p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            The reader handles nested archives, mixed folders, and special characters in filenames
-            automatically.
-          </p>
-        </div>
-      </AccordionItem>
-      <AccordionItem>
-        {#snippet header()}Creating mokuro files{/snippet}
-        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
-          <p>
-            <a
-              href="https://github.com/kha-white/mokuro"
-              target="_blank"
-              class="text-primary-600 hover:underline dark:text-primary-500">Mokuro</a
-            >
-            is an OCR tool that analyzes manga pages and extracts Japanese text. It generates a
-            <code>.mokuro</code> file for each volume, which this reader uses to display selectable text
-            overlays on top of your manga images.
-          </p>
-          <p>Install mokuro (<b>0.2.0</b> or later required):</p>
-          <div role="none" onclick={toClipboard}>
-            <code class="bg-gray-900 text-primary-600">pip install mokuro</code>
-          </div>
-          <p>Then run it on your manga folder:</p>
-          <div role="none" onclick={toClipboard}>
-            <code class="bg-gray-900 text-primary-600">mokuro /path/to/manga/volume</code>
-          </div>
-          <p class="text-sm">
-            See the <a
-              href="https://github.com/kha-white/mokuro"
-              target="_blank"
-              class="text-primary-600 hover:underline dark:text-primary-500">mokuro documentation</a
-            > for detailed usage and options.
-          </p>
-        </div>
-      </AccordionItem>
-      <AccordionItem>
-        {#snippet header()}Mobile tips{/snippet}
-        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
-          <p>
-            Importing on mobile works best with smaller files. ZIP or CBZ individual volumes rather
-            than entire series — folder selection usually doesn't work, and large archives may crash
-            due to RAM limits.
-          </p>
-          <p>
-            <b>Export for mobile:</b> On a computer, use the export button on the series page to download
-            volumes as mobile-ready CBZ files (includes the mokuro file). Transfer them to your device
-            and import here.
-          </p>
-          <p>
-            <b>Easiest method:</b> Back up to Google Drive or MEGA (free), then grab volumes from the
-            cloud on mobile with a tap.
-          </p>
-        </div>
-      </AccordionItem>
-    </Accordion>
     <Dropzone
       id="dropzone"
       ondrop={dropHandle}
@@ -272,5 +193,83 @@
       <Button outline onclick={reset} {disabled} color="dark">Reset</Button>
       <Button outline onclick={onImport} {disabled}>Import</Button>
     </div>
+    <Accordion flush>
+      <AccordionItem>
+        {#snippet header()}What can I add?{/snippet}
+        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
+          <p>
+            This reader is designed for manga processed with <a
+              href="https://github.com/kha-white/mokuro"
+              target="_blank"
+              class="text-primary-600 hover:underline dark:text-primary-500">mokuro</a
+            >, which extracts Japanese text from manga pages for use with popup dictionaries like
+            Yomitan.
+          </p>
+          <p>
+            To add a volume, provide your manga images (as a <b>ZIP</b>, <b>CBZ</b>, or folder)
+            along with the <code>.mokuro</code> file that contains the OCR text data. The reader pairs
+            them automatically — whether the mokuro file is inside the archive, alongside it, or in a
+            parent folder.
+          </p>
+          <p>
+            <b>Image-only comics:</b> You can also add comics without a <code>.mokuro</code> file. These
+            won't have text overlays, but are useful for reference copies in other languages.
+          </p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            The reader handles nested archives, mixed folders, and special characters in filenames
+            automatically.
+          </p>
+        </div>
+      </AccordionItem>
+      <AccordionItem>
+        {#snippet header()}Creating mokuro files{/snippet}
+        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
+          <p>
+            <a
+              href="https://github.com/kha-white/mokuro"
+              target="_blank"
+              class="text-primary-600 hover:underline dark:text-primary-500">Mokuro</a
+            >
+            is an OCR tool that analyzes manga pages and extracts Japanese text. It generates a
+            <code>.mokuro</code> file for each volume, which this reader uses to display selectable text
+            overlays on top of your manga images.
+          </p>
+          <p>Install mokuro (<b>0.2.0</b> or later required):</p>
+          <div role="none" onclick={toClipboard}>
+            <code class="bg-gray-900 text-primary-600">pip install mokuro</code>
+          </div>
+          <p>Then run it on your manga folder:</p>
+          <div role="none" onclick={toClipboard}>
+            <code class="bg-gray-900 text-primary-600">mokuro /path/to/manga/volume</code>
+          </div>
+          <p class="text-sm">
+            See the <a
+              href="https://github.com/kha-white/mokuro"
+              target="_blank"
+              class="text-primary-600 hover:underline dark:text-primary-500">mokuro documentation</a
+            > for detailed usage and options.
+          </p>
+        </div>
+      </AccordionItem>
+      <AccordionItem>
+        {#snippet header()}Mobile tips{/snippet}
+        <div class="flex flex-col gap-3 text-gray-700 dark:text-gray-300">
+          <p>
+            Importing on mobile works best with smaller files. ZIP or CBZ individual volumes rather
+            than entire series — folder selection usually doesn't work, and large archives may crash
+            due to RAM limits.
+          </p>
+          <p>
+            <b>Export for mobile:</b> On a computer, use the export button on the series page to download
+            volumes as mobile-ready CBZ files (includes the mokuro file). Transfer them to your device
+            and import here.
+          </p>
+          <p>
+            <b>Easiest method:</b> Back up to Google Drive or MEGA (free), then grab volumes from the
+            cloud on mobile with a tap.
+          </p>
+        </div>
+      </AccordionItem>
+    </Accordion>
   {/await}
-</Modal>
+</div>

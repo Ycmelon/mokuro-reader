@@ -175,3 +175,18 @@ input[type='radio']:checked::after {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Height reserved by the mobile BottomNav. Bottom-anchored overlays (toasts,
+   progress tracker, update banner) offset by this so they clear the bar.
+   The bar only exists below md and off the reader, so it collapses to 0 there. */
+:root {
+  --bottom-nav-offset: calc(4rem + env(safe-area-inset-bottom));
+}
+body.reader {
+  --bottom-nav-offset: 0px;
+}
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-offset: 0px;
+  }
+}
