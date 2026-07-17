@@ -471,17 +471,19 @@
 
   .dict-height-resize-handle {
     top: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    width: 76px;
     height: 14px;
+    transform: translateX(-50%);
     cursor: ns-resize;
   }
 
   .dict-width-resize-handle {
-    top: 14px;
+    top: 50%;
     right: 0;
-    bottom: 0;
     width: 14px;
+    height: 76px;
+    transform: translateY(-50%);
     cursor: ew-resize;
   }
 
