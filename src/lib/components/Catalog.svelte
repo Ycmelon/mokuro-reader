@@ -315,11 +315,15 @@
       </div>
     {:else}
       <!-- Local series -->
-      <div class="flex flex-col flex-wrap justify-center gap-[3px] sm:flex-row sm:justify-start">
+      <div>
         {#if $miscSettings.galleryLayout === 'grid'}
-          {#each localSeries as { title, volumes } (title)}
-            <CatalogItem {volumes} providerName={providerDisplayName} />
-          {/each}
+          <div
+            class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8"
+          >
+            {#each localSeries as { title, volumes } (title)}
+              <CatalogItem {volumes} providerName={providerDisplayName} />
+            {/each}
+          </div>
         {:else}
           <Listgroup active class="w-full">
             {#each localSeries as { title, volumes } (title)}
@@ -348,13 +352,15 @@
               </Button>
             {/if}
           </div>
-          <div
-            class="flex flex-col flex-wrap justify-center gap-[3px] sm:flex-row sm:justify-start"
-          >
+          <div>
             {#if $miscSettings.galleryLayout === 'grid'}
-              {#each placeholderSeries as { title, volumes } (title)}
-                <CatalogItem {volumes} providerName={providerDisplayName} />
-              {/each}
+              <div
+                class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8"
+              >
+                {#each placeholderSeries as { title, volumes } (title)}
+                  <CatalogItem {volumes} providerName={providerDisplayName} />
+                {/each}
+              </div>
             {:else}
               <Listgroup active class="w-full">
                 {#each placeholderSeries as { title, volumes } (title)}
