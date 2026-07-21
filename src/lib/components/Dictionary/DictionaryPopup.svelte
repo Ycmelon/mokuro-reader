@@ -47,6 +47,9 @@
   let widthResizeHandleEl: HTMLElement | undefined = $state();
   let activeResize: 'height' | 'width' | null = $state(null);
   let resizePointerId: number | null = null;
+  // Distance between the grab point and the popup edge being dragged, captured
+  // on pointer-down so the edge tracks the finger instead of jumping to it.
+  let resizeGrabOffset = 0;
   let previousBodyCursor = '';
   let previousBodyUserSelect = '';
   let popup = $derived($dictPopup);
@@ -157,13 +160,13 @@
   }
 
   function resizeFromClientY(clientY: number): void {
-    const nextHeight = heightFromClientY(clientY);
+    const nextHeight = heightFromClientY(clientY - resizeGrabOffset);
     if (nextHeight === null) return;
     livePopupHeight = nextHeight;
   }
 
   function resizeFromClientX(clientX: number): void {
-    const nextWidth = widthFromClientX(clientX);
+    const nextWidth = widthFromClientX(clientX - resizeGrabOffset);
     if (nextWidth === null) return;
     livePopupWidth = nextWidth;
   }
@@ -187,6 +190,9 @@
     activeResize = 'height';
     resizePointerId = event.pointerId;
     livePopupHeight = popupHeight;
+    // The popup grows from the bottom, so its top edge is the one being dragged.
+    const topEdge = popupEl?.getBoundingClientRect().top;
+    resizeGrabOffset = topEdge === undefined ? 0 : event.clientY - topEdge;
     lockResizeCursor('ns-resize');
     heightResizeHandleEl?.setPointerCapture(event.pointerId);
     resizeFromClientY(event.clientY);
@@ -199,6 +205,9 @@
     activeResize = 'width';
     resizePointerId = event.pointerId;
     livePopupWidth = popupWidth;
+    // The popup is centered, so the right edge is the one being dragged.
+    const rightEdge = popupEl?.getBoundingClientRect().right;
+    resizeGrabOffset = rightEdge === undefined ? 0 : event.clientX - rightEdge;
     lockResizeCursor('ew-resize');
     widthResizeHandleEl?.setPointerCapture(event.pointerId);
     resizeFromClientX(event.clientX);
