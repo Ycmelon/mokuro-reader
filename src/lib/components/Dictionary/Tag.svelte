@@ -7,39 +7,39 @@
 <span class="dict-tag {kind}" {title}>{text}</span>
 
 <style>
-  /* Small pills matching 10ten's tag styling. Colours follow 10ten's theme-black
-     palette: field=green, misc=blue, dial=pink; pos is a plain bordered chip. */
+  /* Small pills matching 10ten's tag styling. Theme-semantic accents tint the
+     label, border, and background; mixing the label toward the popup foreground
+     keeps the coloured text readable across both light and dark themes. */
   .dict-tag {
+    --dict-tag-accent: var(--color-gray-600);
+
     display: inline-block;
     font-size: 10px;
     line-height: 1.4;
     padding: 0 4px;
     border-radius: 3px;
-    border: 1px solid;
+    border: 1px solid color-mix(in srgb, var(--dict-tag-accent) 70%, currentColor);
+    background: color-mix(in srgb, var(--dict-tag-accent) 12%, transparent);
+    color: color-mix(in srgb, var(--dict-tag-accent) 35%, var(--color-gray-50));
     white-space: nowrap;
     vertical-align: middle;
   }
 
   .pos {
-    border-color: rgba(255, 255, 255, 0.35);
+    border-color: color-mix(in srgb, currentColor 60%, transparent);
+    background: transparent;
     color: var(--color-gray-300);
   }
 
   .field {
-    border-color: #43a047;
-    color: #86d68b;
-    background: rgba(67, 160, 71, 0.16);
+    --dict-tag-accent: var(--color-green-500);
   }
 
   .misc {
-    border-color: #2698fb;
-    color: #7cc2fc;
-    background: rgba(38, 152, 251, 0.16);
+    --dict-tag-accent: var(--color-blue-500);
   }
 
   .dial {
-    border-color: #f24b59;
-    color: #f6939a;
-    background: rgba(242, 75, 89, 0.16);
+    --dict-tag-accent: var(--color-red-500);
   }
 </style>
