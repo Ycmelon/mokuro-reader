@@ -603,9 +603,9 @@
 <div class="h-[90svh] p-2">
   {#if !hasAnyProvider}
     <!-- Provider Selection Screen (like sign-in options) -->
-    <div class="flex justify-center pt-0 sm:pt-20">
-      <div class="w-full max-w-md">
-        <h2 class="mb-8 text-center text-2xl font-semibold">Choose a Cloud Storage Provider</h2>
+    <div class="mx-auto w-full max-w-md p-2">
+      <div class="flex flex-col gap-4">
+        <h2 class="text-2xl font-semibold">Cloud storage</h2>
 
         <div class="flex flex-col gap-3">
           <!-- Google Drive Option -->
