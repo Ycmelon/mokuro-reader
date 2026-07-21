@@ -180,7 +180,7 @@ input[type='radio']:checked::after {
    progress tracker, update banner) offset by this so they clear the bar.
    The bar only exists below md and off the reader, so it collapses to 0 there. */
 :root {
-  --bottom-nav-offset: calc(4rem + env(safe-area-inset-bottom));
+  --bottom-nav-offset: calc(5rem + env(safe-area-inset-bottom));
 }
 body.reader {
   --bottom-nav-offset: 0px;

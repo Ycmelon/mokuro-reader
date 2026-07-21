@@ -8,7 +8,6 @@
     ChartNoAxesCombined
   } from '@lucide/svelte';
   import { nav, isOnReader } from '$lib/util/hash-router';
-  import Settings from './Settings/Settings.svelte';
   import BottomNav from './BottomNav.svelte';
   import Icon from '$lib/assets/icon.webp';
   import { showSnackbar } from '$lib/util';
@@ -17,7 +16,6 @@
   import { unifiedProviderState } from '$lib/util/sync/unified-provider-state';
 
   // Use $state to make these reactive
-  let settingsOpen = $state(false);
   let isReader = $state(false);
 
   // Read unified provider state synchronously
@@ -83,7 +81,7 @@
   }
 
   function openSettings() {
-    settingsOpen = true;
+    nav.toSettings();
   }
 
   function navigateToUpload() {
@@ -218,7 +216,5 @@
 </div>
 
 {#if !isReader}
-  <BottomNav onSettings={openSettings} {settingsOpen} />
+  <BottomNav />
 {/if}
-
-<Settings bind:open={settingsOpen} />

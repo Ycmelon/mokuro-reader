@@ -1,21 +1,9 @@
 <script lang="ts">
-  import { Accordion, Button, Drawer } from 'flowbite-svelte';
+  import { Drawer } from 'flowbite-svelte';
   import { Settings as SettingsIcon } from '@lucide/svelte';
   import { sineIn } from 'svelte/easing';
-  import { resetSettings } from '$lib/settings';
-  import { isReader, promptConfirmation } from '$lib/util';
   import { currentView } from '$lib/util/hash-router';
-  import AnkiSettings from './AnkiSettings.svelte';
-  import ReaderSettings from './Reader/ReaderSettings.svelte';
-  import Profiles from './Profiles/Profiles.svelte';
-  import CatalogSettings from './CatalogSettings.svelte';
-  import Stats from './Stats.svelte';
-  import VolumeDefaults from './Volume/VolumeDefaults.svelte';
-  import About from './About.svelte';
-  import DictionarySettings from './DictionarySettings.svelte';
-  import QuickAccess from './QuickAccess.svelte';
-  import AppearanceSettings from './AppearanceSettings.svelte';
-  import AiChatSettings from './AiChatSettings.svelte';
+  import SettingsContent from './SettingsContent.svelte';
 
   let transitionParams = {
     x: 320,
@@ -29,11 +17,6 @@
 
   // In Svelte 5, we need to make sure the open prop is properly bindable
   let { open = $bindable(false) }: Props = $props();
-
-  function onReset() {
-    open = false;
-    promptConfirmation('Restore default settings?', resetSettings);
-  }
 
   function onClose() {
     open = false;
@@ -85,25 +68,5 @@
   >
     <SettingsIcon class="mr-2.5 h-4 w-4" />Settings
   </h5>
-  <div class="flex flex-col gap-5">
-    <Accordion flush>
-      <QuickAccess bind:open />
-      <ReaderSettings />
-      {#if !isReader()}
-        <VolumeDefaults />
-      {/if}
-      <Profiles {onClose} />
-      <DictionarySettings />
-      <AiChatSettings />
-      <AnkiSettings />
-      <CatalogSettings />
-      <AppearanceSettings />
-      <Stats />
-      <About />
-    </Accordion>
-    <div class="flex flex-col gap-2">
-      <Button outline onclick={onReset}>Reset</Button>
-      <Button outline onclick={onClose} color="light">Close</Button>
-    </div>
-  </div>
+  <SettingsContent close={onClose} />
 </Drawer>

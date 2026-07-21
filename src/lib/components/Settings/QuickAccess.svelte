@@ -6,18 +6,19 @@
   import { Button } from 'flowbite-svelte';
 
   interface Props {
-    open?: boolean;
+    /** Dismiss the settings surface this control lives in. */
+    close: () => void;
   }
 
-  let { open = $bindable(false) }: Props = $props();
+  let { close }: Props = $props();
 
   function onFullscreen() {
-    open = false;
+    close();
     toggleFullScreen();
   }
 
   function onClose() {
-    open = false;
+    close();
     navigateBack();
   }
 </script>

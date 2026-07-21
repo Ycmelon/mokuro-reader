@@ -16,6 +16,7 @@ export type View =
   | { type: 'series-text'; seriesId: string }
   | { type: 'cloud' }
   | { type: 'upload' }
+  | { type: 'settings' }
   | { type: 'reading-speed' }
   | { type: 'merge-series' }
   | { type: 'libraries' }
@@ -45,6 +46,7 @@ export function parseHash(hash: string): View {
     }
     if (segments[0] === 'cloud') return { type: 'cloud' };
     if (segments[0] === 'upload') return { type: 'upload' };
+    if (segments[0] === 'settings') return { type: 'settings' };
     if (segments[0] === 'reading-speed') return { type: 'reading-speed' };
     if (segments[0] === 'merge-series') return { type: 'merge-series' };
     if (segments[0] === 'libraries' || segments[0] === 'add-library') return { type: 'catalog' };
@@ -90,6 +92,8 @@ export function viewToHash(view: View): string {
       return '#/cloud';
     case 'upload':
       return '#/upload';
+    case 'settings':
+      return '#/settings';
     case 'reading-speed':
       return '#/reading-speed';
     case 'merge-series':
@@ -159,6 +163,9 @@ export const nav = {
   /** Navigate to upload page */
   toUpload: (options?: NavigateOptions) => navigate({ type: 'upload' }, options),
 
+  /** Navigate to settings page */
+  toSettings: (options?: NavigateOptions) => navigate({ type: 'settings' }, options),
+
   /** Navigate to reading speed page */
   toReadingSpeed: (options?: NavigateOptions) => navigate({ type: 'reading-speed' }, options),
 
@@ -207,6 +214,7 @@ export function navigateBack(): void {
     case 'cloud':
     case 'reading-speed':
     case 'upload':
+    case 'settings':
     case 'merge-series':
     case 'libraries':
       nav.toCatalog();
