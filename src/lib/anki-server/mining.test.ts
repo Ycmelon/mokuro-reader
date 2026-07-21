@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { screenRectToImageCrop } from './mining';
+import { findRenderedPage } from '$lib/reader/page-image';
 
 // An 800×1200 image displayed 400px wide at (100, 50) → uniform scale of 2.
 const pageBox = { left: 100, top: 50, width: 400 };
@@ -54,5 +55,47 @@ describe('screenRectToImageCrop', () => {
     expect(
       screenRectToImageCrop({ left: 99.8, top: 100, width: 0.3, height: 50 }, pageBox, IMG_W, IMG_H)
     ).toBeNull();
+  });
+});
+
+describe('findRenderedPage', () => {
+  it('resolves a remounted page instead of retaining the detached page', () => {
+    const oldPage = document.createElement('div');
+    oldPage.dataset.pageIndex = '4';
+    oldPage.dataset.volumeUuid = 'volume-a';
+    document.body.append(oldPage);
+
+    expect(findRenderedPage('volume-a', 4)).toBe(oldPage);
+
+    oldPage.remove();
+    const remountedPage = document.createElement('div');
+    remountedPage.dataset.pageIndex = '4';
+    remountedPage.dataset.volumeUuid = 'volume-a';
+    document.body.append(remountedPage);
+
+    expect(findRenderedPage('volume-a', 4)).toBe(remountedPage);
+    remountedPage.remove();
+  });
+
+  it('does not return a page with the same index from another volume', () => {
+    const page = document.createElement('div');
+    page.dataset.pageIndex = '2';
+    page.dataset.volumeUuid = 'volume-b';
+    document.body.append(page);
+
+    expect(findRenderedPage('volume-a', 2)).toBeNull();
+    page.remove();
+  });
+
+  it('prefers the incoming page while a transition keeps both copies mounted', () => {
+    const outgoing = document.createElement('div');
+    outgoing.dataset.pageIndex = '6';
+    outgoing.dataset.volumeUuid = 'volume-a';
+    const incoming = outgoing.cloneNode() as HTMLElement;
+    document.body.append(outgoing, incoming);
+
+    expect(findRenderedPage('volume-a', 6)).toBe(incoming);
+    outgoing.remove();
+    incoming.remove();
   });
 });

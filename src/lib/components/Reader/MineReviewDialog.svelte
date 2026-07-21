@@ -26,6 +26,13 @@
   import type { ChatMessage } from '$lib/ai-chat/openrouter';
   import { Crop, ScanText } from '@lucide/svelte';
 
+  interface Props {
+    /** Return the reader to the draft's 0-based source page before recropping. */
+    onRecrop?: (pageIndex: number) => void;
+  }
+
+  let { onRecrop }: Props = $props();
+
   // Local, editable copies of the draft. Reseeded only when a *new* draft arrives
   // (initial crop, or a redo-crop) — identified by object identity — so ongoing
   // edits are never clobbered by re-renders.
@@ -114,8 +121,12 @@
   }
 
   function onRedoCrop() {
+    const stage = get(miningStage);
+    if (stage.kind !== 'review') return;
+
     // Flag the round-trip so the returning draft keeps the generated content.
     redoing = true;
+    onRecrop?.(stage.ctx.pageIndex);
     // Carry the current edits back so they survive the crop round-trip.
     reopenCrop({ sentence, focus, image, sentenceSelection });
   }

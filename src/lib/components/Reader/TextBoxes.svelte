@@ -420,6 +420,7 @@
     highlightWord
   } from '$lib/dictionary/lookup';
   import { setMiningContext, miningStage } from '$lib/anki-server/mining';
+  import { findRenderedPage } from '$lib/reader/page-image';
 
   // Devices with a real pointer (mouse) reveal text via :hover, so a single
   // click should look up immediately. Touch devices use tap-to-reveal first.
@@ -577,7 +578,10 @@
       volumeUuid,
       seriesTitle: $volumes[volumeUuid]?.series_title ?? '',
       volumeTitle: $volumes[volumeUuid]?.volume_title ?? '',
-      getPageEl: () => boxEl?.closest<HTMLElement>('[data-page-index]') ?? null,
+      // Resolve the current MangaPage each time. The component containing
+      // boxEl is destroyed by paged navigation, so retaining that element
+      // makes it permanently zero-sized after a reselect/page round-trip.
+      getPageEl: () => findRenderedPage(volumeUuid, pageIndex ?? 0),
       sentenceSelection: [{ id: boxId, text: combined.trim() }]
     });
   }

@@ -46,6 +46,7 @@
 <div
   draggable="false"
   data-page-index={pageIndex}
+  data-volume-uuid={volumeUuid}
   style:width={`${page.img_width}px`}
   style:height={`${page.img_height}px`}
   class="relative"

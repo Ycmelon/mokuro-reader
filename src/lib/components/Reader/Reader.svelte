@@ -58,6 +58,7 @@
   import { shouldShowSinglePage } from '$lib/reader/page-mode-detection';
   import { calculateForwardTarget, calculateBackwardTarget } from '$lib/reader/page-nav';
   import { ImageCache } from '$lib/reader/image-cache';
+  import { findRenderedPage } from '$lib/reader/page-image';
   import '$lib/styles/page-transitions.css';
 
   // TODO: Refactor this whole mess
@@ -879,12 +880,14 @@
   }
 
   function handleSelectionCreateFlashcard(text: string, entries: TextSelectionEntry[]) {
+    const volumeUuid = volume?.volume_uuid;
+    if (!volumeUuid) return;
     const pageIndex = pageIndexFromSelection(entries);
     startSentenceFlashcard(
       buildSentenceMiningContext(
         text,
         pageIndex,
-        () => document.querySelector<HTMLElement>(`[data-page-index="${pageIndex}"]`),
+        () => findRenderedPage(volumeUuid, pageIndex),
         entries
       )
     );
@@ -1220,7 +1223,7 @@
 
   <DictionaryPopup />
   <MineCropOverlay />
-  <MineReviewDialog />
+  <MineReviewDialog onRecrop={(pageIndex) => changePage(pageIndex + 1, true)} />
   <AiChatPanel />
 {:else if $volumesLoaded && !volume}
   <!-- The volumes table has loaded and this UUID genuinely isn't in it. -->

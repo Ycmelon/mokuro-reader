@@ -15,6 +15,36 @@ function urlFromBackground(value: string | null | undefined): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * Resolve a page from the live reader DOM rather than retaining a component
+ * element. Paged navigation destroys and recreates MangaPage, so a mining
+ * context that captured the original element would keep returning its detached,
+ * zero-sized node even after the reader came back to the same page.
+ */
+export function findRenderedPage(
+  volumeUuid: string,
+  pageIndex: number,
+  root: ParentNode = document
+): HTMLElement | null {
+  const index = String(pageIndex);
+  const pages = root.querySelectorAll<HTMLElement>('[data-page-index]');
+
+  // Page transitions temporarily leave the outgoing and incoming trees in the
+  // DOM together. The incoming (live) tree is appended last.
+  for (let i = pages.length - 1; i >= 0; i -= 1) {
+    const page = pages[i];
+    if (
+      page.isConnected &&
+      page.dataset.pageIndex === index &&
+      page.dataset.volumeUuid === volumeUuid
+    ) {
+      return page;
+    }
+  }
+
+  return null;
+}
+
 export function extractPageImageUrl(element: HTMLElement | null): string | null {
   if (!element) return null;
 
